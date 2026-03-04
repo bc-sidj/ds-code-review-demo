@@ -15,6 +15,7 @@ permissions:
   contents: read
   pull-requests: write
   issues: write
+  id-token: write
 
 jobs:
   claude-review:
@@ -44,7 +45,7 @@ jobs:
           #   3. Add it as a GitHub secret named CLAUDE_CODE_OAUTH_TOKEN
           #   4. Uncomment the line below and comment out Option B
           #
-          anthropic_api_key: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           #
           # OPTION B: Anthropic API Key (if you have one)
           #   1. Get your key from https://console.anthropic.com
