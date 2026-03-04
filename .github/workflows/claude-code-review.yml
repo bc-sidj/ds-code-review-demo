@@ -1,0 +1,128 @@
+name: Claude Automated Code Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches:
+      - main
+  # Also respond to @claude mentions in PR comments
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  claude-review:
+    name: Claude First-Pass Code Review
+    runs-on: ubuntu-latest
+    # Run on PR events, or when someone tags @claude in a comment
+    if: |
+      github.event_name == 'pull_request' ||
+      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
+      (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude'))
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run Claude Code Review
+        uses: anthropics/claude-code-action@v1
+        with:
+          # ============================================================
+          # AUTHENTICATION — choose ONE of the following options:
+          #
+          # OPTION A: OAuth Token (Pro/Max subscription — NO API key needed)
+          #   1. Run `claude setup-token` in your terminal
+          #   2. Copy the token it generates
+          #   3. Add it as a GitHub secret named CLAUDE_CODE_OAUTH_TOKEN
+          #   4. Uncomment the line below and comment out Option B
+          #
+          anthropic_api_key: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          #
+          # OPTION B: Anthropic API Key (if you have one)
+          #   1. Get your key from https://console.anthropic.com
+          #   2. Add it as a GitHub secret named ANTHROPIC_API_KEY
+          #   3. Uncomment the line below and comment out Option A
+          #
+          # anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          # ============================================================
+
+          # The review prompt — tells Claude exactly what to check
+          prompt: |
+            You are reviewing a Pull Request for the BigCommerce Data Solutions (DS) team's dw_airflow repository. This repo contains Airflow DAGs (Python) and Snowflake DDL/DML (SQL).
+
+            Perform a thorough first-pass code review. Read every changed file in this PR, then produce a single GitHub-flavored Markdown comment structured as follows:
+
+            ## Claude Automated Code Review
+
+            ### DS Workflow Compliance
+            | Check | Status | Notes |
+            |-------|--------|-------|
+            | Jira ticket in commit message (DS-XXXX or ANALYTICS-XXXX) | PASS/FAIL | Which ticket found, or "None found" |
+            | Testing doc reminder | PASS/REMINDER | "Airflow code changed — ensure testing is done" or "No Airflow changes" |
+            | Rollout doc reminder | PASS/REMINDER | "DDL/DML detected — rollout doc needed" or "No DDL/DML" |
+            | DDL-only simplified process | INFO/N/A | "Only SQL files changed — simplified PR process may apply" |
+
+            ### Code Review Findings
+            For EACH changed file, create a section with:
+
+            **For Python / Airflow files (.py):**
+            - catchup explicitly set (prefer False unless backfill intended)
+            - default_args has owner, start_date, retries, retry_delay
+            - Task deps correct (>> chaining, no orphaned tasks, no circular deps)
+            - Correct operator for task type
+            - retries and on_failure_callback present
+            - Idempotent (safe to re-run)
+            - No hardcoded credentials or environment-specific paths (use Airflow Variables/Connections)
+            - No unused/missing imports
+            - snake_case naming for DAG/task IDs
+            - Edge cases: empty datasets, NULL in key fields, date/timezone issues, large volume
+
+            **For SQL files (.sql):**
+            - All object refs fully qualified (schema.object, e.g., FIL.STORE not just STORE)
+            - No USE SCHEMA statements
+            - Object COMMENT includes ticket: COMMENT = 'DS-XXXX ...'
+            - All UPDATE/DELETE have WHERE clause (CRITICAL if missing)
+            - NULLability intentional
+            - No unnecessary SELECT *
+            - sp_rollout start/end calls present if rollout doc
+            - Edge cases: NULL propagation in JOINs, duplicates, divide-by-zero, empty result sets
+
+            Use severity levels:
+            - CRITICAL — must fix before merge (security, missing WHERE on DML, broken logic)
+            - WARNING — should address (missing error handling, unhandled edge cases)
+            - SUGGESTION — nice to have (readability, performance)
+            - PASS — explicitly call out things done well
+
+            ### Edge Cases Summary
+            List all detected edge cases with file and line references.
+
+            ### Generated Test Cases
+
+            **Python (pytest stubs):**
+            For each changed .py file, generate test stubs covering: happy path, empty input, NULL values, date boundaries, upstream task failure.
+
+            **SQL (validation queries):**
+            For each changed .sql file, generate: row count check, NULL check on key columns, duplicate check, range/sanity check, sample spot-check.
+
+            ### Summary
+            | Metric | Count |
+            |--------|-------|
+            | Critical issues | X |
+            | Warnings | X |
+            | Suggestions | X |
+            | Checks passed | X |
+
+            **Verdict:** READY FOR HUMAN REVIEW / ADDRESS WARNINGS / CRITICAL ISSUES FOUND
+
+            > This is an automated first-pass review by Claude. A human reviewer must still approve this PR. Separation of duties applies for production rollout per DS SOX compliance requirements.
+
+          # CLI arguments — limit turns and use Sonnet for speed/cost
+          claude_args: "--max-turns 5 --model claude-sonnet-4-5-20250929"

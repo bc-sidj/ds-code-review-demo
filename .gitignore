@@ -1,0 +1,11 @@
+# Claude automated code review reports (local only)
+code_reviews/*.md
+
+# Python
+__pycache__/
+*.pyc
+.env
+
+# IDE
+.idea/
+.vscode/
