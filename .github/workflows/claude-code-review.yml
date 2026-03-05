@@ -5,7 +5,6 @@ on:
     types: [opened, synchronize, reopened]
     branches:
       - main
-  # Also respond to @claude mentions in PR comments
   issue_comment:
     types: [created]
   pull_request_review_comment:
@@ -21,7 +20,6 @@ jobs:
   claude-review:
     name: Claude First-Pass Code Review
     runs-on: ubuntu-latest
-    # Run on PR events, or when someone tags @claude in a comment
     if: |
       github.event_name == 'pull_request' ||
       (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
@@ -33,91 +31,86 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Run Claude Code Review
-        id: claude_review
-        uses: anthropics/claude-code-action@v1
+      - name: Install Claude Code
+        run: npm install -g @anthropic-ai/claude-code@latest
+
+      - name: Run Claude Review and Post Comment
         env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
-        with:
-          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          github_token: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Get the diff
+          git diff origin/main...HEAD > /tmp/diff.txt
 
-          prompt: |
-            You are reviewing a Pull Request for the BigCommerce Data Solutions (DS) team's dw_airflow repository. This repo contains Airflow DAGs (Python) and Snowflake DDL/DML (SQL).
+          # Write the prompt to a file
+          cat > /tmp/prompt.txt << 'PROMPTEOF'
+          You are reviewing a Pull Request for the BigCommerce Data Solutions (DS) team's dw_airflow repository. This repo contains Airflow DAGs (Python) and Snowflake DDL/DML (SQL).
 
-            Run `git diff origin/main...HEAD` to see the changes, then produce a thorough code review.
+          Review the git diff below and output a thorough first-pass code review in GitHub-flavored Markdown using this structure:
 
-            IMPORTANT INSTRUCTIONS:
-            1. Write your complete review to /tmp/claude-review.md using a bash redirect
-            2. Then post it to the PR by running: gh pr comment $PR_NUMBER --body-file /tmp/claude-review.md
-            3. The gh CLI is authenticated — use it directly
+          ## Claude Automated Code Review
 
-            Structure your review as follows:
+          ### DS Workflow Compliance
+          | Check | Status | Notes |
+          |-------|--------|-------|
+          | Jira ticket in commit message (DS-XXXX or ANALYTICS-XXXX) | PASS/FAIL | Which ticket found, or "None found" |
+          | Testing doc reminder | PASS/REMINDER | "Airflow code changed — ensure testing is done" or "No Airflow changes" |
+          | Rollout doc reminder | PASS/REMINDER | "DDL/DML detected — rollout doc needed" or "No DDL/DML" |
+          | DDL-only simplified process | INFO/N/A | "Only SQL files changed — simplified PR process may apply" |
 
-            ## Claude Automated Code Review
+          ### Code Review Findings
+          For EACH changed file, create a section with findings using these severity levels:
+          - CRITICAL — must fix before merge (security, missing WHERE on DML, broken logic)
+          - WARNING — should address (missing error handling, unhandled edge cases)
+          - SUGGESTION — nice to have (readability, performance)
+          - PASS — explicitly call out things done well
 
-            ### DS Workflow Compliance
-            | Check | Status | Notes |
-            |-------|--------|-------|
-            | Jira ticket in commit message (DS-XXXX or ANALYTICS-XXXX) | PASS/FAIL | Which ticket found, or "None found" |
-            | Testing doc reminder | PASS/REMINDER | "Airflow code changed — ensure testing is done" or "No Airflow changes" |
-            | Rollout doc reminder | PASS/REMINDER | "DDL/DML detected — rollout doc needed" or "No DDL/DML" |
-            | DDL-only simplified process | INFO/N/A | "Only SQL files changed — simplified PR process may apply" |
+          **For Python / Airflow files (.py) check:**
+          - catchup explicitly set (prefer False unless backfill intended)
+          - default_args has owner, start_date, retries, retry_delay
+          - Task deps correct (>> chaining, no orphaned tasks, no circular deps)
+          - retries and on_failure_callback present
+          - No hardcoded credentials or environment-specific paths
+          - No unused/missing imports, snake_case naming, idempotent design
+          - Edge cases: empty datasets, NULL in key fields, date/timezone issues, large volume
 
-            ### Code Review Findings
-            For EACH changed file, create a section with:
+          **For SQL files (.sql) check:**
+          - All object refs fully qualified (e.g., FIL.STORE not just STORE)
+          - No USE SCHEMA statements
+          - Object COMMENT includes ticket: COMMENT = 'DS-XXXX ...'
+          - All UPDATE/DELETE have WHERE clause (CRITICAL if missing)
+          - No unnecessary SELECT *, NULL propagation in JOINs, divide-by-zero
 
-            **For Python / Airflow files (.py):**
-            - catchup explicitly set (prefer False unless backfill intended)
-            - default_args has owner, start_date, retries, retry_delay
-            - Task deps correct (>> chaining, no orphaned tasks, no circular deps)
-            - Correct operator for task type
-            - retries and on_failure_callback present
-            - Idempotent (safe to re-run)
-            - No hardcoded credentials or environment-specific paths (use Airflow Variables/Connections)
-            - No unused/missing imports
-            - snake_case naming for DAG/task IDs
-            - Edge cases: empty datasets, NULL in key fields, date/timezone issues, large volume
+          ### Edge Cases Summary
+          List all detected edge cases with file and line references.
 
-            **For SQL files (.sql):**
-            - All object refs fully qualified (schema.object, e.g., FIL.STORE not just STORE)
-            - No USE SCHEMA statements
-            - Object COMMENT includes ticket: COMMENT = 'DS-XXXX ...'
-            - All UPDATE/DELETE have WHERE clause (CRITICAL if missing)
-            - NULLability intentional
-            - No unnecessary SELECT *
-            - sp_rollout start/end calls present if rollout doc
-            - Edge cases: NULL propagation in JOINs, duplicates, divide-by-zero, empty result sets
+          ### Generated Test Cases
 
-            Use severity levels:
-            - CRITICAL — must fix before merge (security, missing WHERE on DML, broken logic)
-            - WARNING — should address (missing error handling, unhandled edge cases)
-            - SUGGESTION — nice to have (readability, performance)
-            - PASS — explicitly call out things done well
+          **Python (pytest stubs):** For each .py file, stubs for: happy path, empty input, NULL values, date boundaries, upstream failure.
 
-            ### Edge Cases Summary
-            List all detected edge cases with file and line references.
+          **SQL (validation queries):** For each .sql file: row count check, NULL check on key columns, duplicate check, range/sanity check, spot-check.
 
-            ### Generated Test Cases
+          ### Summary
+          | Metric | Count |
+          |--------|-------|
+          | Critical issues | X |
+          | Warnings | X |
+          | Suggestions | X |
+          | Checks passed | X |
 
-            **Python (pytest stubs):**
-            For each changed .py file, generate test stubs covering: happy path, empty input, NULL values, date boundaries, upstream task failure.
+          **Verdict:** READY FOR HUMAN REVIEW / ADDRESS WARNINGS / CRITICAL ISSUES FOUND
 
-            **SQL (validation queries):**
-            For each changed .sql file, generate: row count check, NULL check on key columns, duplicate check, range/sanity check, sample spot-check.
+          > This is an automated first-pass review by Claude. A human reviewer must still approve this PR. Separation of duties applies for production rollout per DS SOX compliance requirements.
 
-            ### Summary
-            | Metric | Count |
-            |--------|-------|
-            | Critical issues | X |
-            | Warnings | X |
-            | Suggestions | X |
-            | Checks passed | X |
+          Here is the diff to review:
+          PROMPTEOF
 
-            **Verdict:** READY FOR HUMAN REVIEW / ADDRESS WARNINGS / CRITICAL ISSUES FOUND
+          # Append the actual diff
+          cat /tmp/diff.txt >> /tmp/prompt.txt
 
-            > This is an automated first-pass review by Claude. A human reviewer must still approve this PR. Separation of duties applies for production rollout per DS SOX compliance requirements.
+          # Run Claude in print mode — output goes to review file
+          claude -p "$(cat /tmp/prompt.txt)" > /tmp/review.md
 
-          claude_args: "--max-turns 10 --model claude-sonnet-4-5-20250929"
-
+          # Post the review as a PR comment
+          gh pr comment "$PR_NUMBER" --body-file /tmp/review.md
