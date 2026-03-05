@@ -46,6 +46,7 @@ jobs:
           #   4. Uncomment the line below and comment out Option B
           #
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
           #
           # OPTION B: Anthropic API Key (if you have one)
           #   1. Get your key from https://console.anthropic.com
