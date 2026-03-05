@@ -36,33 +36,20 @@ jobs:
       - name: Run Claude Code Review
         uses: anthropics/claude-code-action@v1
         with:
-          # ============================================================
-          # AUTHENTICATION — choose ONE of the following options:
-          #
-          # OPTION A: OAuth Token (Pro/Max subscription — NO API key needed)
-          #   1. Run `claude setup-token` in your terminal
-          #   2. Copy the token it generates
-          #   3. Add it as a GitHub secret named CLAUDE_CODE_OAUTH_TOKEN
-          #   4. Uncomment the line below and comment out Option B
-          #
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          #
-          # OPTION B: Anthropic API Key (if you have one)
-          #   1. Get your key from https://console.anthropic.com
-          #   2. Add it as a GitHub secret named ANTHROPIC_API_KEY
-          #   3. Uncomment the line below and comment out Option A
-          #
-          # anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          # ============================================================
 
-          # The review prompt — tells Claude exactly what to check
+          # The review prompt — tells Claude to write review to a file
           prompt: |
             You are reviewing a Pull Request for the BigCommerce Data Solutions (DS) team's dw_airflow repository. This repo contains Airflow DAGs (Python) and Snowflake DDL/DML (SQL).
 
-            IMPORTANT: After completing your review, you MUST post the results as a comment on this PR using the GitHub tools available to you (mcp__github__create_issue_comment or equivalent). Do not just output text — actually post the comment to the PR.
+            IMPORTANT INSTRUCTIONS:
+            1. Perform the full code review below
+            2. Write your COMPLETE review to the file: /home/runner/work/_temp/claude-review.md
+            3. Use the Bash tool to write the file: bash -c 'cat > /home/runner/work/_temp/claude-review.md << "REVIEWEOF"\n[your review here]\nREVIEWEOF'
+            4. Do NOT attempt to post via gh CLI or GitHub API — a separate step will post the file as a PR comment
 
-            Perform a thorough first-pass code review. Read every changed file in this PR, then post a single GitHub-flavored Markdown comment structured as follows:
+            Perform a thorough first-pass code review. Read every changed file in this PR using git diff, then write a single GitHub-flavored Markdown review structured as follows:
 
             ## Claude Automated Code Review
 
@@ -128,6 +115,40 @@ jobs:
 
             > This is an automated first-pass review by Claude. A human reviewer must still approve this PR. Separation of duties applies for production rollout per DS SOX compliance requirements.
 
-          # CLI arguments — limit turns and use Sonnet for speed/cost
           claude_args: "--max-turns 15 --model claude-sonnet-4-5-20250929"
           show_full_output: true
+
+      - name: Post Review as PR Comment
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            const reviewPath = '/home/runner/work/_temp/claude-review.md';
+
+            if (!fs.existsSync(reviewPath)) {
+              console.log('No review file found at', reviewPath);
+              return;
+            }
+
+            const review = fs.readFileSync(reviewPath, 'utf8').trim();
+            if (!review) {
+              console.log('Review file is empty');
+              return;
+            }
+
+            const prNumber = context.payload.pull_request?.number ?? context.payload.issue?.number;
+            if (!prNumber) {
+              console.log('Could not determine PR number');
+              return;
+            }
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+              body: review
+            });
+
+            console.log(`Posted review comment to PR #${prNumber}`);
