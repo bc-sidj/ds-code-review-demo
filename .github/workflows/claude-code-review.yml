@@ -34,22 +34,20 @@ jobs:
           fetch-depth: 0
 
       - name: Run Claude Code Review
+        id: claude_review
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
 
-          # The review prompt — tells Claude to write review to a file
           prompt: |
             You are reviewing a Pull Request for the BigCommerce Data Solutions (DS) team's dw_airflow repository. This repo contains Airflow DAGs (Python) and Snowflake DDL/DML (SQL).
 
-            IMPORTANT INSTRUCTIONS:
-            1. Perform the full code review below
-            2. Write your COMPLETE review to the file: claude-review.md (in the current working directory)
-            3. Use the Write tool to create the file with your full review content
-            4. Do NOT attempt to post via gh CLI or GitHub API — a separate step will post the file as a PR comment
+            Run `git diff origin/main...HEAD` to see the changes, then produce a thorough code review.
 
-            Perform a thorough first-pass code review. Read every changed file in this PR using git diff, then write a single GitHub-flavored Markdown review structured as follows:
+            Output ONLY the review as your final response — plain GitHub-flavored Markdown. Do not call any APIs or try to post the comment yourself. Just output the review text.
+
+            Structure your review as follows:
 
             ## Claude Automated Code Review
 
@@ -115,26 +113,20 @@ jobs:
 
             > This is an automated first-pass review by Claude. A human reviewer must still approve this PR. Separation of duties applies for production rollout per DS SOX compliance requirements.
 
-          claude_args: "--max-turns 15 --model claude-sonnet-4-5-20250929"
-          show_full_output: true
+          claude_args: "--max-turns 10 --model claude-sonnet-4-5-20250929"
 
       - name: Post Review as PR Comment
         if: always()
         uses: actions/github-script@v7
+        env:
+          CLAUDE_CONCLUSION: ${{ steps.claude_review.outputs.conclusion }}
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const fs = require('fs');
-            const reviewPath = `${process.env.GITHUB_WORKSPACE}/claude-review.md`;
+            const review = process.env.CLAUDE_CONCLUSION;
 
-            if (!fs.existsSync(reviewPath)) {
-              console.log('No review file found at', reviewPath);
-              return;
-            }
-
-            const review = fs.readFileSync(reviewPath, 'utf8').trim();
-            if (!review) {
-              console.log('Review file is empty');
+            if (!review || !review.trim()) {
+              console.log('No conclusion output from Claude action');
               return;
             }
 
