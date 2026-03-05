@@ -45,8 +45,8 @@ jobs:
 
             IMPORTANT INSTRUCTIONS:
             1. Perform the full code review below
-            2. Write your COMPLETE review to the file: /home/runner/work/_temp/claude-review.md
-            3. Use the Bash tool to write the file: bash -c 'cat > /home/runner/work/_temp/claude-review.md << "REVIEWEOF"\n[your review here]\nREVIEWEOF'
+            2. Write your COMPLETE review to the file: claude-review.md (in the current working directory)
+            3. Use the Write tool to create the file with your full review content
             4. Do NOT attempt to post via gh CLI or GitHub API — a separate step will post the file as a PR comment
 
             Perform a thorough first-pass code review. Read every changed file in this PR using git diff, then write a single GitHub-flavored Markdown review structured as follows:
@@ -125,7 +125,7 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const fs = require('fs');
-            const reviewPath = '/home/runner/work/_temp/claude-review.md';
+            const reviewPath = `${process.env.GITHUB_WORKSPACE}/claude-review.md`;
 
             if (!fs.existsSync(reviewPath)) {
               console.log('No review file found at', reviewPath);
