@@ -129,4 +129,5 @@ jobs:
             > This is an automated first-pass review by Claude. A human reviewer must still approve this PR. Separation of duties applies for production rollout per DS SOX compliance requirements.
 
           # CLI arguments — limit turns and use Sonnet for speed/cost
-          claude_args: "--max-turns 5 --model claude-sonnet-4-5-20250929"
+          claude_args: "--max-turns 15 --model claude-sonnet-4-5-20250929"
+          show_full_output: true
