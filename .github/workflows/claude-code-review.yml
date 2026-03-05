@@ -60,7 +60,9 @@ jobs:
           prompt: |
             You are reviewing a Pull Request for the BigCommerce Data Solutions (DS) team's dw_airflow repository. This repo contains Airflow DAGs (Python) and Snowflake DDL/DML (SQL).
 
-            Perform a thorough first-pass code review. Read every changed file in this PR, then produce a single GitHub-flavored Markdown comment structured as follows:
+            IMPORTANT: After completing your review, you MUST post the results as a comment on this PR using the GitHub tools available to you (mcp__github__create_issue_comment or equivalent). Do not just output text — actually post the comment to the PR.
+
+            Perform a thorough first-pass code review. Read every changed file in this PR, then post a single GitHub-flavored Markdown comment structured as follows:
 
             ## Claude Automated Code Review
 
