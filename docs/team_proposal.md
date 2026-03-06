@@ -1,4 +1,4 @@
-# Automated Code Review with Claude — Team Proposal
+# Automated Code Review with AI — Team Proposal
 
 **Author:** Siddharth Jasani
 **Date:** March 2026
@@ -16,19 +16,19 @@ This slows down our velocity, creates bottlenecks when reviewers are busy, and m
 
 ## The Proposal
 
-Add an **automated first-pass review** powered by Claude AI that runs at two points in our workflow:
+Add an **automated first-pass review** powered by AI that runs at two points in our workflow:
 
-**Layer 1 — Before the PR (in PyCharm)**
-A `/code-review` command you run in PyCharm via the Claude Code plugin. It reviews your diff locally and generates a report in under a minute. You fix issues before anyone else ever sees your code.
+**Layer 1 — Before the PR (in Cursor)**
+Ask Cursor's AI to follow the review instructions in `.claude/commands/code-review.md`. It reviews your diff locally and generates a report in under a minute. You fix issues before anyone else ever sees your code.
 
 **Layer 2 — On the PR (GitHub Action)**
-An automated GitHub Action that triggers every time a PR is opened or updated. Claude reviews the full diff and posts a structured review comment directly on the PR — before a human reviewer opens it.
+An automated GitHub Action that triggers every time a PR is opened or updated. The workflow calls the Anthropic API with the PR diff and posts a structured review comment directly on the PR — before a human reviewer opens it.
 
-The human reviewer still has final say. Claude just handles the first pass so the human can focus on logic, architecture, and business correctness.
+The human reviewer still has final say. AI just handles the first pass so the human can focus on logic, architecture, and business correctness.
 
 ---
 
-## What Claude Checks (Tailored to DS Standards)
+## What the Review Checks (Tailored to DS Standards)
 
 **DS Workflow Compliance**
 - Jira ticket number present in commit messages
@@ -64,15 +64,15 @@ CURRENT PROCESS                    NEW PROCESS
 ─────────────────                  ──────────────────────────
 Write code                         Write code
   │                                  │
-  │                                Run /code-review in PyCharm  ← NEW
+  │                                Ask Cursor AI to review       ← NEW
   │                                  │
-  │                                Fix issues found locally     ← NEW
+  │                                Fix issues found locally      ← NEW
   │                                  │
 Complete testing                   Complete testing
   │                                  │
 Create PR                          Create PR
   │                                  │
-  │                                Claude reviews PR (auto)     ← NEW
+  │                                AI reviews PR (auto)          ← NEW
   │                                  │
 Wait for human review              Human reviews (faster — routine
   │                                  issues already caught)
@@ -89,7 +89,7 @@ The key benefit: **human reviewers spend their time on what matters** — busine
 - Human approval is still required on every PR
 - Separation of duties for production rollout (SOX compliance) is unchanged
 - Testing documentation and rollout docs are still created manually
-- Claude does not have access to Snowflake or Airflow — it reviews code only
+- The AI does not have access to Snowflake or Airflow — it reviews code only
 
 ---
 
@@ -100,7 +100,7 @@ I've built a demo repo (`ds-code-review-demo`) that you can clone and try yourse
 1. **A buggy Airflow DAG** — 17 intentional issues including hardcoded passwords, missing error handling, deprecated imports, and orphaned tasks
 2. **A buggy SQL file** — 13 intentional issues including unqualified names, missing comments, divide-by-zero risks, and DML without WHERE clauses
 3. **Clean versions of both** — showing what "passing" code looks like
-4. **The full automation setup** — slash command + GitHub Action, ready to test
+4. **The full automation setup** — review instructions + GitHub Action, ready to test
 
 ### How to try it yourself
 ```bash
@@ -114,8 +114,8 @@ cp dags/buggy/* dags/
 cp ddl/fuji/vz_apps/buggy/* ddl/fuji/vz_apps/
 git add . && git commit -m "DS-9999 Add store metrics DAG and view"
 
-# 3. Run /code-review in PyCharm
-#    Open PyCharm → Claude panel → type /code-review
+# 3. Open in Cursor and ask the AI to review
+#    "Follow the instructions in .claude/commands/code-review.md to review changes on this branch."
 
 # 4. Push and open a PR to see the GitHub Action in action
 git push -u origin feature/DS-9999-test-buggy-code
@@ -127,33 +127,33 @@ git push -u origin feature/DS-9999-test-buggy-code
 ## Cost and Maintenance
 
 - **API cost:** Each review uses roughly 2,000-4,000 tokens (~$0.01-0.04 per review with Claude Sonnet). At 20 PRs/week, that's under $5/month.
-- **Maintenance:** The review checklist lives in two markdown/YAML files in the repo. Any team member can update the review rules by editing those files — no special tooling required.
+- **Maintenance:** The review checklist lives in markdown/YAML/Python files in the repo. Any team member can update the review rules by editing those files — no special tooling required.
 - **No new accounts/tools needed:** Uses our existing GitHub Actions infrastructure + an Anthropic API key stored as a GitHub secret.
 
 ---
 
 ## Next Steps
 
-1. **Try the demo** — clone the repo and run `/code-review` on the buggy examples
+1. **Try the demo** — clone the repo and run the review on the buggy examples
 2. **Team discussion** — is the review checklist complete? Any DS-specific patterns to add?
 3. **Pilot on real work** — pick 2-3 real PRs and run the automated review alongside the manual one. Compare results.
-4. **Roll out to dw_airflow** — once we're confident, copy the `.claude/` and `.github/` folders into the production repo.
+4. **Roll out to dw_airflow** — once we're confident, copy the `.claude/`, `.github/`, and `CLAUDE.md` into the production repo.
 
 ---
 
 ## FAQ
 
 **Q: Will this slow down PRs?**
-No — the GitHub Action runs in parallel and typically completes in under 60 seconds. The review comment appears before a human would normally get to it.
+No — the GitHub Action runs in parallel and typically completes in under 90 seconds. The review comment appears before a human would normally get to it.
 
-**Q: Can Claude approve PRs?**
-No. Claude only comments. A human must still approve and merge. SOX separation of duties is fully maintained.
+**Q: Can the AI approve PRs?**
+No. It only comments. A human must still approve and merge. SOX separation of duties is fully maintained.
 
-**Q: What if Claude gives a false positive?**
+**Q: What if it gives a false positive?**
 Treat it like any review comment — if it's wrong, ignore it. Over time we can tune the checklist to reduce noise.
 
-**Q: Does Claude see our production data?**
-No. Claude only sees the code diff in the PR. It has no access to Snowflake, Airflow, or any production systems.
+**Q: Does it see our production data?**
+No. The AI only sees the code diff in the PR. It has no access to Snowflake, Airflow, or any production systems.
 
 **Q: Can we customize what it checks?**
-Yes — the entire review checklist is defined in `.claude/commands/code-review.md` (for local reviews) and in the GitHub Action prompt. Edit those files to add, remove, or modify any check.
+Yes — the entire review checklist is defined in `.claude/commands/code-review.md` (for local reviews) and in `.github/scripts/review.py` (for PR reviews). Edit those files to add, remove, or modify any check.
