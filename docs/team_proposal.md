@@ -22,7 +22,7 @@ Add an **automated first-pass review** powered by AI that runs at two points in 
 Ask Cursor's AI to follow the review instructions in `.claude/commands/code-review.md`. It reviews your diff locally and generates a report in under a minute. You fix issues before anyone else ever sees your code.
 
 **Layer 2 — On the PR (GitHub Action)**
-An automated GitHub Action that triggers every time a PR is opened or updated. The workflow calls the Anthropic API with the PR diff and posts a structured review comment directly on the PR — before a human reviewer opens it.
+An automated GitHub Action that triggers every time a PR is opened or updated. The workflow calls an AI API (OpenRouter by default, which provides access to Claude and other models) with the PR diff and posts a structured review comment directly on the PR — before a human reviewer opens it.
 
 The human reviewer still has final say. AI just handles the first pass so the human can focus on logic, architecture, and business correctness.
 
@@ -128,7 +128,7 @@ git push -u origin feature/DS-9999-test-buggy-code
 
 - **API cost:** Each review uses roughly 2,000-4,000 tokens (~$0.01-0.04 per review with Claude Sonnet). At 20 PRs/week, that's under $5/month.
 - **Maintenance:** The review checklist lives in markdown/YAML/Python files in the repo. Any team member can update the review rules by editing those files — no special tooling required.
-- **No new accounts/tools needed:** Uses our existing GitHub Actions infrastructure + an Anthropic API key stored as a GitHub secret.
+- **No new accounts/tools needed:** Uses our existing GitHub Actions infrastructure + an API key (OpenRouter, OpenAI, or Anthropic) stored as a GitHub secret.
 
 ---
 

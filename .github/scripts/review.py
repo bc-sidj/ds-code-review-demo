@@ -1,23 +1,29 @@
 #!/usr/bin/env python3
-"""Automated PR code review using the Anthropic API.
+"""Automated PR code review using an OpenAI-compatible API.
 
-Reads a git diff from /tmp/diff.txt, sends it to Claude for review,
+Reads a git diff from /tmp/diff.txt, sends it to an AI model for review,
 and writes the resulting Markdown review to stdout.
 
-Requires:
-  - ANTHROPIC_API_KEY environment variable
-  - anthropic Python package
+Works with any OpenAI-compatible provider (OpenRouter, OpenAI, Anthropic, etc.)
+by configuring these environment variables:
+
+  OPENROUTER_API_KEY  — API key (also checks OPENAI_API_KEY as fallback)
+  API_BASE_URL        — Base URL (defaults to https://openrouter.ai/api/v1)
+  REVIEW_MODEL        — Model name (defaults to anthropic/claude-sonnet-4-20250514)
 """
 
 import os
 import sys
 import pathlib
 
-import anthropic
+from openai import OpenAI
 
 DIFF_PATH = pathlib.Path("/tmp/diff.txt")
 CLAUDE_MD_PATH = pathlib.Path(os.environ.get("GITHUB_WORKSPACE", ".")) / "CLAUDE.md"
 MAX_DIFF_CHARS = 120_000
+
+DEFAULT_BASE_URL = "https://openrouter.ai/api/v1"
+DEFAULT_MODEL = "anthropic/claude-sonnet-4-20250514"
 
 REVIEW_PROMPT = """\
 You are reviewing a Pull Request for the BigCommerce Data Solutions (DS) team's \
@@ -94,6 +100,19 @@ Here is the diff to review:
 """
 
 
+def get_api_key() -> str:
+    for var in ("OPENROUTER_API_KEY", "OPENAI_API_KEY", "ANTHROPIC_API_KEY"):
+        key = os.environ.get(var)
+        if key:
+            return key
+    print(
+        "No API key found. Set OPENROUTER_API_KEY, OPENAI_API_KEY, "
+        "or ANTHROPIC_API_KEY as an environment variable.",
+        file=sys.stderr,
+    )
+    sys.exit(1)
+
+
 def load_project_context() -> str:
     if CLAUDE_MD_PATH.exists():
         content = CLAUDE_MD_PATH.read_text().strip()
@@ -125,15 +144,19 @@ def main() -> None:
         diff_content=diff_content,
     )
 
-    client = anthropic.Anthropic()
+    api_key = get_api_key()
+    base_url = os.environ.get("API_BASE_URL", DEFAULT_BASE_URL)
+    model = os.environ.get("REVIEW_MODEL", DEFAULT_MODEL)
 
-    message = client.messages.create(
-        model="claude-sonnet-4-20250514",
+    client = OpenAI(api_key=api_key, base_url=base_url)
+
+    response = client.chat.completions.create(
+        model=model,
         max_tokens=4096,
         messages=[{"role": "user", "content": prompt}],
     )
 
-    print(message.content[0].text)
+    print(response.choices[0].message.content)
 
 
 if __name__ == "__main__":

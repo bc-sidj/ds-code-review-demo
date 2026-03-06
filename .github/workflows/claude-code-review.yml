@@ -36,14 +36,17 @@ jobs:
           python-version: "3.12"
 
       - name: Install dependencies
-        run: pip install anthropic
+        run: pip install openai
 
       - name: Generate diff
         run: git diff origin/main...HEAD > /tmp/diff.txt
 
       - name: Run AI code review
         env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          # Optional overrides (uncomment to customize):
+          # API_BASE_URL: "https://openrouter.ai/api/v1"
+          # REVIEW_MODEL: "anthropic/claude-sonnet-4-20250514"
         run: python .github/scripts/review.py > /tmp/review.md
 
       - name: Post review comment on PR

@@ -7,8 +7,8 @@ This is a proof-of-concept repo for automated code review on the BigCommerce Dat
 - `ddl/fuji/` — Snowflake DDL/DML files organized by database/schema (e.g., `ddl/fuji/vz_apps/`)
 - `code_reviews/` — Local review reports generated during code review (gitignored)
 - `.claude/commands/code-review.md` — Code review instructions (reference prompt for Cursor AI)
-- `.github/workflows/claude-code-review.yml` — GitHub Action for PR-level review (uses Anthropic API)
-- `.github/scripts/review.py` — Python script that calls the Anthropic API for automated PR review
+- `.github/workflows/claude-code-review.yml` — GitHub Action for PR-level review
+- `.github/scripts/review.py` — Python script that calls an OpenAI-compatible API (OpenRouter by default) for automated PR review
 
 ## DS Team Standards
 

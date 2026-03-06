@@ -42,7 +42,7 @@ The repo should already be set up with:
   `gh repo create ds-code-review-demo --public --source=. --push`
 
 ### Step 3: Set up GitHub Action authentication
-- Tell me to add my Anthropic API key as a GitHub secret called `ANTHROPIC_API_KEY`
+- Tell me to sign up at openrouter.ai, create an API key, and add it as a GitHub secret called `OPENROUTER_API_KEY`
   (Repo Settings → Secrets and variables → Actions → New repository secret)
 
 ### Step 4: Create a test branch with buggy code
