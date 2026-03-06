@@ -19,10 +19,10 @@ This slows down our velocity, creates bottlenecks when reviewers are busy, and m
 Add an **automated first-pass review** powered by AI that runs at two points in our workflow:
 
 **Layer 1 — Before the PR (in Cursor)**
-Ask Cursor's AI to follow the review instructions in `.claude/commands/code-review.md`. It reviews your diff locally and generates a report in under a minute. You fix issues before anyone else ever sees your code.
+Ask Cursor's AI to follow the review instructions in `docs/code-review-instructions.md`. It reviews your diff locally and generates a report in under a minute. You fix issues before anyone else ever sees your code.
 
 **Layer 2 — On the PR (GitHub Action)**
-An automated GitHub Action that triggers every time a PR is opened or updated. The workflow calls an AI API (OpenRouter by default, which provides access to Claude and other models) with the PR diff and posts a structured review comment directly on the PR — before a human reviewer opens it.
+An automated GitHub Action that triggers every time a PR is opened or updated. The workflow calls the OpenAI API with the PR diff and posts a structured review comment directly on the PR — before a human reviewer opens it.
 
 The human reviewer still has final say. AI just handles the first pass so the human can focus on logic, architecture, and business correctness.
 
@@ -115,7 +115,7 @@ cp ddl/fuji/vz_apps/buggy/* ddl/fuji/vz_apps/
 git add . && git commit -m "DS-9999 Add store metrics DAG and view"
 
 # 3. Open in Cursor and ask the AI to review
-#    "Follow the instructions in .claude/commands/code-review.md to review changes on this branch."
+#    "Follow the instructions in docs/code-review-instructions.md to review changes on this branch."
 
 # 4. Push and open a PR to see the GitHub Action in action
 git push -u origin feature/DS-9999-test-buggy-code
@@ -126,7 +126,7 @@ git push -u origin feature/DS-9999-test-buggy-code
 
 ## Cost and Maintenance
 
-- **API cost:** Each review uses roughly 2,000-4,000 tokens (~$0.01-0.04 per review with Claude Sonnet). At 20 PRs/week, that's under $5/month.
+- **API cost:** Each review uses roughly 2,000-4,000 tokens (~$0.01-0.04 per review with GPT-4o). At 20 PRs/week, that's under $5/month.
 - **Maintenance:** The review checklist lives in markdown/YAML/Python files in the repo. Any team member can update the review rules by editing those files — no special tooling required.
 - **No new accounts/tools needed:** Uses our existing GitHub Actions infrastructure + an API key (OpenRouter, OpenAI, or Anthropic) stored as a GitHub secret.
 
@@ -137,7 +137,7 @@ git push -u origin feature/DS-9999-test-buggy-code
 1. **Try the demo** — clone the repo and run the review on the buggy examples
 2. **Team discussion** — is the review checklist complete? Any DS-specific patterns to add?
 3. **Pilot on real work** — pick 2-3 real PRs and run the automated review alongside the manual one. Compare results.
-4. **Roll out to dw_airflow** — once we're confident, copy the `.claude/`, `.github/`, and `CLAUDE.md` into the production repo.
+4. **Roll out to dw_airflow** — once we're confident, copy `.github/`, `CONTEXT.md`, and `docs/code-review-instructions.md` into the production repo.
 
 ---
 
@@ -156,4 +156,4 @@ Treat it like any review comment — if it's wrong, ignore it. Over time we can 
 No. The AI only sees the code diff in the PR. It has no access to Snowflake, Airflow, or any production systems.
 
 **Q: Can we customize what it checks?**
-Yes — the entire review checklist is defined in `.claude/commands/code-review.md` (for local reviews) and in `.github/scripts/review.py` (for PR reviews). Edit those files to add, remove, or modify any check.
+Yes — the entire review checklist is defined in `docs/code-review-instructions.md` (for local reviews) and in `.github/scripts/review.py` (for PR reviews). Edit those files to add, remove, or modify any check.

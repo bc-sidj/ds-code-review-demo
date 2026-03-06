@@ -12,16 +12,16 @@ I need you to help me set up and test the ds-code-review-demo repo. This is a pr
 ## What This Repo Does
 
 Two layers of automated code review:
-1. **Layer 1 (Local):** I ask you to follow the review instructions in `.claude/commands/code-review.md`. You review my git diff and generate a structured report.
+1. **Layer 1 (Local):** I ask you to follow the review instructions in `docs/code-review-instructions.md`. You review my git diff and generate a structured report.
 2. **Layer 2 (GitHub Action):** An automatic review that triggers on every PR. The workflow calls the Anthropic API to review the diff and posts a comment on the PR.
 
 ## Repo Structure
 
 The repo should already be set up with:
-- `.claude/commands/code-review.md` — the review instructions
-- `.github/workflows/claude-code-review.yml` — the GitHub Action
-- `.github/scripts/review.py` — the Python script that calls the Anthropic API
-- `CLAUDE.md` — project memory with DS team standards
+- `docs/code-review-instructions.md` — the review instructions
+- `.github/workflows/code-review.yml` — the GitHub Action
+- `.github/scripts/review.py` — the Python script that calls the AI API
+- `CONTEXT.md` — project memory with DS team standards
 - `dags/buggy/dag_store_metrics_buggy.py` — sample DAG with 17 intentional bugs
 - `dags/clean/dag_store_metrics_clean.py` — fixed version
 - `ddl/fuji/vz_apps/buggy/vw_store_summary_buggy.sql` — sample SQL with 13 intentional issues
@@ -34,7 +34,7 @@ The repo should already be set up with:
 ### Step 1: Verify the repo is set up correctly
 - Check that all the files above exist
 - Confirm the `.gitignore` has `code_reviews/*.md`
-- Confirm the `CLAUDE.md` is present
+- Confirm the `CONTEXT.md` is present
 
 ### Step 2: Initialize git and push to GitHub
 - Initialize git if not already done: `git init && git add . && git commit -m "Initial commit: DS code review automation POC"`
@@ -55,7 +55,7 @@ git commit -m "DS-9999 Add store metrics DAG and summary view"
 ```
 
 ### Step 5: Run the code review locally
-Follow the instructions in `.claude/commands/code-review.md` to review the changes on this branch. Save the report to `code_reviews/code_review_feature-DS-9999-test-buggy-code.md`.
+Follow the instructions in `docs/code-review-instructions.md` to review the changes on this branch. Save the report to `code_reviews/code_review_feature-DS-9999-test-buggy-code.md`.
 
 ### Step 6: Tell me what to do next
 After the local review is done, tell me to:

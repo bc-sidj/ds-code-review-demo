@@ -19,7 +19,7 @@ import pathlib
 from openai import OpenAI
 
 DIFF_PATH = pathlib.Path("/tmp/diff.txt")
-CLAUDE_MD_PATH = pathlib.Path(os.environ.get("GITHUB_WORKSPACE", ".")) / "CLAUDE.md"
+CONTEXT_MD_PATH = pathlib.Path(os.environ.get("GITHUB_WORKSPACE", ".")) / "CONTEXT.md"
 MAX_DIFF_CHARS = 120_000
 
 DEFAULT_BASE_URL = "https://api.openai.com/v1"
@@ -114,8 +114,8 @@ def get_api_key() -> str:
 
 
 def load_project_context() -> str:
-    if CLAUDE_MD_PATH.exists():
-        content = CLAUDE_MD_PATH.read_text().strip()
+    if CONTEXT_MD_PATH.exists():
+        content = CONTEXT_MD_PATH.read_text().strip()
         return f"Here is the project context and team standards:\n\n{content}"
     return ""
 
