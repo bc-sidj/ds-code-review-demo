@@ -4,7 +4,7 @@ Purpose: Pulls store metrics from Snowflake, transforms, and loads summary table
 Ticket: (none — intentionally missing for demo)
 
 === INTENTIONAL BUGS FOR DEMO ===
-This file has 12+ issues that Claude's automated review should catch.
+This file has 17 issues that the automated review should catch.
 See the companion file dags/clean/dag_store_metrics_clean.py for the fixed version.
 """
 
