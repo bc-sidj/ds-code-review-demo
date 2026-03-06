@@ -7,9 +7,9 @@ and writes the resulting Markdown review to stdout.
 Works with any OpenAI-compatible provider (OpenRouter, OpenAI, Anthropic, etc.)
 by configuring these environment variables:
 
-  OPENROUTER_API_KEY  — API key (also checks OPENAI_API_KEY as fallback)
-  API_BASE_URL        — Base URL (defaults to https://openrouter.ai/api/v1)
-  REVIEW_MODEL        — Model name (defaults to anthropic/claude-sonnet-4-20250514)
+  OPENAI_API_KEY      — API key (also checks OPENROUTER_API_KEY, ANTHROPIC_API_KEY)
+  API_BASE_URL        — Base URL (defaults to https://api.openai.com/v1)
+  REVIEW_MODEL        — Model name (defaults to gpt-4o)
 """
 
 import os
@@ -22,8 +22,8 @@ DIFF_PATH = pathlib.Path("/tmp/diff.txt")
 CLAUDE_MD_PATH = pathlib.Path(os.environ.get("GITHUB_WORKSPACE", ".")) / "CLAUDE.md"
 MAX_DIFF_CHARS = 120_000
 
-DEFAULT_BASE_URL = "https://openrouter.ai/api/v1"
-DEFAULT_MODEL = "anthropic/claude-sonnet-4-20250514"
+DEFAULT_BASE_URL = "https://api.openai.com/v1"
+DEFAULT_MODEL = "gpt-4o"
 
 REVIEW_PROMPT = """\
 You are reviewing a Pull Request for the BigCommerce Data Solutions (DS) team's \
@@ -101,7 +101,7 @@ Here is the diff to review:
 
 
 def get_api_key() -> str:
-    for var in ("OPENROUTER_API_KEY", "OPENAI_API_KEY", "ANTHROPIC_API_KEY"):
+    for var in ("OPENAI_API_KEY", "OPENROUTER_API_KEY", "ANTHROPIC_API_KEY"):
         key = os.environ.get(var)
         if key:
             return key

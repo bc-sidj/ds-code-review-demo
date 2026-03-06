@@ -43,10 +43,9 @@ jobs:
 
       - name: Run AI code review
         env:
-          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
-          # Optional overrides (uncomment to customize):
-          # API_BASE_URL: "https://openrouter.ai/api/v1"
-          # REVIEW_MODEL: "anthropic/claude-sonnet-4-20250514"
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          API_BASE_URL: "https://api.openai.com/v1"
+          REVIEW_MODEL: "gpt-4o"
         run: python .github/scripts/review.py > /tmp/review.md
 
       - name: Post review comment on PR

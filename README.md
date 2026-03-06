@@ -35,20 +35,14 @@ ds-code-review-demo/
 | Layer | Where | Trigger | Auth needed |
 |-------|-------|---------|-------------|
 | **Layer 1** — Local review | Cursor IDE | Ask the AI to follow the review instructions | None (uses your Cursor subscription) |
-| **Layer 2** — PR review | GitHub Actions | Automatic on PR open/update | OpenRouter API key (or any OpenAI-compatible key) |
+| **Layer 2** — PR review | GitHub Actions | Automatic on PR open/update | OpenAI API key stored as GitHub secret |
 
 ## Quick Start
 
 ### Prerequisites
 - **Cursor** IDE installed
 - Git + GitHub CLI (`gh`)
-- An API key from one of these providers (for the GitHub Action):
-
-| Provider | Cost | How to get a key |
-|----------|------|------------------|
-| **OpenRouter** (recommended) | Free credits on signup, then pay-per-use | [openrouter.ai/keys](https://openrouter.ai/keys) |
-| **OpenAI** | Pay-per-use | [platform.openai.com/api-keys](https://platform.openai.com/api-keys) |
-| **Anthropic** | Pay-per-use | [console.anthropic.com](https://console.anthropic.com/) |
+- An **OpenAI API key** (for the GitHub Action) — get one at [platform.openai.com/api-keys](https://platform.openai.com/api-keys)
 
 ### Step 1: Clone and initialize
 ```bash
@@ -56,22 +50,15 @@ git clone https://github.com/<your-username>/ds-code-review-demo.git
 cd ds-code-review-demo
 ```
 
-### Step 2: Set up GitHub Action auth
+### Step 2: Set up GitHub Action auth (OpenAI API key)
 
-**Option A — OpenRouter (recommended, no Anthropic key needed)**
-1. Sign up at [openrouter.ai](https://openrouter.ai) (free credits included)
-2. Go to [openrouter.ai/keys](https://openrouter.ai/keys) and create an API key
-3. In your GitHub repo → **Settings** → **Secrets and variables** → **Actions** → **New repository secret**
-   - Name: `OPENROUTER_API_KEY`
-   - Value: paste the key
+1. Go to your repo on GitHub → **Settings** → **Secrets and variables** → **Actions** → **New repository secret**
+   - Name: `OPENAI_API_KEY`
+   - Value: paste your OpenAI API key
 
-**Option B — OpenAI or Anthropic directly**
-1. Add your key as a GitHub secret named `OPENAI_API_KEY` or `ANTHROPIC_API_KEY`
-2. In `.github/workflows/claude-code-review.yml`, uncomment the `API_BASE_URL` and `REVIEW_MODEL` lines and set them to match your provider:
-   - OpenAI: `API_BASE_URL: "https://api.openai.com/v1"` / `REVIEW_MODEL: "gpt-4o"`
-   - Anthropic: `API_BASE_URL: "https://api.anthropic.com/v1"` / `REVIEW_MODEL: "claude-sonnet-4-20250514"`
+That's it — no GitHub App installation or OAuth token setup required.
 
-No GitHub App installation or OAuth token setup required.
+> **Want to use a different provider?** The review script supports any OpenAI-compatible API. Set `API_BASE_URL` and `REVIEW_MODEL` in the workflow env vars to point at OpenRouter, Anthropic, or another provider.
 
 ### Step 3: Test the local review (Layer 1)
 ```bash
@@ -139,7 +126,7 @@ cp CLAUDE.md /path/to/dw_airflow/CLAUDE.md
 
 Then:
 1. Add `code_reviews/*.md` to the dw_airflow `.gitignore`
-2. Add your `OPENROUTER_API_KEY` (or other provider key) as a repository secret in the dw_airflow repo settings
+2. Add your `OPENAI_API_KEY` as a repository secret in the dw_airflow repo settings
 3. Customize `CLAUDE.md`, `code-review.md`, and the workflow prompt as standards evolve
 
 ## Customizing the review
