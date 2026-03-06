@@ -1,0 +1,48 @@
+name: Auto-Populate PR Description
+
+on:
+  pull_request:
+    types: [opened]
+    branches:
+      - main
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  generate-description:
+    name: Generate PR Description
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install openai
+
+      - name: Gather PR context
+        run: |
+          git diff origin/main...HEAD > /tmp/diff.txt
+          git log origin/main...HEAD --format="%h %s" > /tmp/commits.txt
+
+      - name: Generate description
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BRANCH: ${{ github.event.pull_request.head.ref }}
+        run: python .github/scripts/generate_pr_description.py > /tmp/pr_body.md
+
+      - name: Update PR description
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: gh pr edit "$PR_NUMBER" --body-file /tmp/pr_body.md
