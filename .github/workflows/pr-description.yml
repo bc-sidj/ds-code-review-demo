@@ -5,21 +5,28 @@ on:
     types: [opened]
     branches:
       - main
+  issue_comment:
+    types: [created]
 
 permissions:
   contents: read
   pull-requests: write
+  issues: write
 
 jobs:
   generate-description:
     name: Generate PR Description
     runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'pull_request' ||
+      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@describe'))
 
     steps:
-      - name: Checkout repository
+      - name: Checkout PR branch
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.ref || github.head_ref }}
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -29,6 +36,23 @@ jobs:
       - name: Install dependencies
         run: pip install openai
 
+      - name: Get PR metadata
+        id: pr-meta
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
+        run: |
+          echo "pr_number=$PR_NUMBER" >> "$GITHUB_OUTPUT"
+          if [ "${{ github.event_name }}" = "issue_comment" ]; then
+            PR_TITLE=$(gh pr view "$PR_NUMBER" --json title --jq '.title')
+            PR_BRANCH=$(gh pr view "$PR_NUMBER" --json headRefName --jq '.headRefName')
+            echo "pr_title=$PR_TITLE" >> "$GITHUB_OUTPUT"
+            echo "pr_branch=$PR_BRANCH" >> "$GITHUB_OUTPUT"
+          else
+            echo "pr_title=${{ github.event.pull_request.title }}" >> "$GITHUB_OUTPUT"
+            echo "pr_branch=${{ github.event.pull_request.head.ref }}" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Gather PR context
         run: |
           git diff origin/main...HEAD > /tmp/diff.txt
@@ -37,12 +61,12 @@ jobs:
       - name: Generate description
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          PR_TITLE: ${{ github.event.pull_request.title }}
-          PR_BRANCH: ${{ github.event.pull_request.head.ref }}
+          PR_TITLE: ${{ steps.pr-meta.outputs.pr_title }}
+          PR_BRANCH: ${{ steps.pr-meta.outputs.pr_branch }}
         run: python .github/scripts/generate_pr_description.py > /tmp/pr_body.md
 
       - name: Update PR description
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_NUMBER: ${{ steps.pr-meta.outputs.pr_number }}
         run: gh pr edit "$PR_NUMBER" --body-file /tmp/pr_body.md
