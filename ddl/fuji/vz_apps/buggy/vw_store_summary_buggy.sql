@@ -1,6 +1,6 @@
 -- =============================================================
 -- INTENTIONAL ISSUES FOR DEMO
--- This SQL file has 10+ issues that Claude should catch.
+-- This SQL file has 13 issues that the automated review should catch.
 -- See ddl/fuji/vz_apps/clean/vw_store_summary_clean.sql for the fixed version.
 -- =============================================================
 
