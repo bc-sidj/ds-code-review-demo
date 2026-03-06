@@ -1,4 +1,4 @@
-name: Claude Automated Code Review
+name: Automated Code Review
 
 on:
   pull_request:
@@ -14,16 +14,15 @@ permissions:
   contents: read
   pull-requests: write
   issues: write
-  id-token: write
 
 jobs:
-  claude-review:
-    name: Claude First-Pass Code Review
+  code-review:
+    name: AI First-Pass Code Review
     runs-on: ubuntu-latest
     if: |
       github.event_name == 'pull_request' ||
-      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
-      (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude'))
+      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@review')) ||
+      (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@review'))
 
     steps:
       - name: Checkout repository
@@ -31,86 +30,24 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Install Claude Code
-        run: npm install -g @anthropic-ai/claude-code@latest
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
 
-      - name: Run Claude Review and Post Comment
+      - name: Install dependencies
+        run: pip install anthropic
+
+      - name: Generate diff
+        run: git diff origin/main...HEAD > /tmp/diff.txt
+
+      - name: Run AI code review
         env:
-          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: python .github/scripts/review.py > /tmp/review.md
+
+      - name: Post review comment on PR
+        env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
-        run: |
-          # Get the diff
-          git diff origin/main...HEAD > /tmp/diff.txt
-
-          # Write the prompt to a file
-          cat > /tmp/prompt.txt << 'PROMPTEOF'
-          You are reviewing a Pull Request for the BigCommerce Data Solutions (DS) team's dw_airflow repository. This repo contains Airflow DAGs (Python) and Snowflake DDL/DML (SQL).
-
-          Review the git diff below and output a thorough first-pass code review in GitHub-flavored Markdown using this structure:
-
-          ## Claude Automated Code Review
-
-          ### DS Workflow Compliance
-          | Check | Status | Notes |
-          |-------|--------|-------|
-          | Jira ticket in commit message (DS-XXXX or ANALYTICS-XXXX) | PASS/FAIL | Which ticket found, or "None found" |
-          | Testing doc reminder | PASS/REMINDER | "Airflow code changed — ensure testing is done" or "No Airflow changes" |
-          | Rollout doc reminder | PASS/REMINDER | "DDL/DML detected — rollout doc needed" or "No DDL/DML" |
-          | DDL-only simplified process | INFO/N/A | "Only SQL files changed — simplified PR process may apply" |
-
-          ### Code Review Findings
-          For EACH changed file, create a section with findings using these severity levels:
-          - CRITICAL — must fix before merge (security, missing WHERE on DML, broken logic)
-          - WARNING — should address (missing error handling, unhandled edge cases)
-          - SUGGESTION — nice to have (readability, performance)
-          - PASS — explicitly call out things done well
-
-          **For Python / Airflow files (.py) check:**
-          - catchup explicitly set (prefer False unless backfill intended)
-          - default_args has owner, start_date, retries, retry_delay
-          - Task deps correct (>> chaining, no orphaned tasks, no circular deps)
-          - retries and on_failure_callback present
-          - No hardcoded credentials or environment-specific paths
-          - No unused/missing imports, snake_case naming, idempotent design
-          - Edge cases: empty datasets, NULL in key fields, date/timezone issues, large volume
-
-          **For SQL files (.sql) check:**
-          - All object refs fully qualified (e.g., FIL.STORE not just STORE)
-          - No USE SCHEMA statements
-          - Object COMMENT includes ticket: COMMENT = 'DS-XXXX ...'
-          - All UPDATE/DELETE have WHERE clause (CRITICAL if missing)
-          - No unnecessary SELECT *, NULL propagation in JOINs, divide-by-zero
-
-          ### Edge Cases Summary
-          List all detected edge cases with file and line references.
-
-          ### Generated Test Cases
-
-          **Python (pytest stubs):** For each .py file, stubs for: happy path, empty input, NULL values, date boundaries, upstream failure.
-
-          **SQL (validation queries):** For each .sql file: row count check, NULL check on key columns, duplicate check, range/sanity check, spot-check.
-
-          ### Summary
-          | Metric | Count |
-          |--------|-------|
-          | Critical issues | X |
-          | Warnings | X |
-          | Suggestions | X |
-          | Checks passed | X |
-
-          **Verdict:** READY FOR HUMAN REVIEW / ADDRESS WARNINGS / CRITICAL ISSUES FOUND
-
-          > This is an automated first-pass review by Claude. A human reviewer must still approve this PR. Separation of duties applies for production rollout per DS SOX compliance requirements.
-
-          Here is the diff to review:
-          PROMPTEOF
-
-          # Append the actual diff
-          cat /tmp/diff.txt >> /tmp/prompt.txt
-
-          # Run Claude in print mode — output goes to review file
-          claude -p "$(cat /tmp/prompt.txt)" > /tmp/review.md
-
-          # Post the review as a PR comment
-          gh pr comment "$PR_NUMBER" --body-file /tmp/review.md
+        run: gh pr comment "$PR_NUMBER" --body-file /tmp/review.md

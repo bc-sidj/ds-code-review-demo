@@ -1,4 +1,4 @@
-# Claude automated code review reports (local only)
+# Automated code review reports (local only)
 code_reviews/*.md
 
 # Python
@@ -9,3 +9,4 @@ __pycache__/
 # IDE
 .idea/
 .vscode/
+.cursor/
