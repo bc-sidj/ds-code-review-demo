@@ -55,18 +55,26 @@ Below are the commit messages and the git diff for this PR.
 Your task: Fill in the PR template with actual content based on the diff and \
 commits above. Follow these rules:
 
-1. Write a concise but complete Summary based on what the code actually does.
-2. Extract the Jira ticket number from the branch name or commit messages. \
-If found, check the checkbox and fill in the ticket link. If not found, leave it unchecked.
-3. Check the appropriate Type of Change boxes based on the file types changed.
-4. List the specific changes made in the Changes Made section.
-5. For Testing, check boxes that are clearly satisfied. Leave others unchecked \
-as reminders for the developer.
-6. For Rollout, check N/A if there are no DDL/DML changes, otherwise leave \
-the rollout boxes unchecked as reminders.
-7. For the Checklist, check items that are clearly satisfied by the code. \
-Leave items unchecked if they are violations or cannot be confirmed.
-8. Keep the SOX Compliance Reminder as-is.
+1. **What/Why?** — Extract the Jira ticket number (DS-XXXX or ANALYTICS-XXXX) from the \
+branch name or commit messages. Format it as a link to \
+`https://bigcommercecloud.atlassian.net/browse/DS-XXXX`. Write a brief 1-2 sentence \
+description of what this PR does and why.
+2. **Acceptance Criteria** — Based on the diff, list what this PR accomplishes. \
+Be specific (e.g., "Create DAG t_store_metrics to export store data daily").
+3. **Type of Change** — Check the appropriate boxes based on the file types changed.
+4. **Changes Made** — List the specific changes: files added/modified, new tasks, \
+SQL objects created, etc.
+5. **Testing** — Leave the testing doc link as a placeholder for the developer to fill in. \
+Leave checkboxes unchecked as reminders.
+6. **Rollout/Rollback** — Fill in based on what the code changes:
+   - If there are Airflow DAG changes: "Airflow changes: Github Actions"
+   - If there are DDL/DML changes: list the database changes
+   - If Airflow Variables are referenced in the code, list them under AWS Variables
+   - If no changes for a section, write "None"
+   - Rollback considerations: describe what would need to be undone
+7. **Checklist** — Check items that are clearly satisfied by the code. \
+Leave items unchecked if they are violations or cannot be confirmed from the diff.
+8. **SOX Compliance Reminder** — Keep as-is.
 
 Output ONLY the filled-in markdown. No extra commentary before or after.
 """
