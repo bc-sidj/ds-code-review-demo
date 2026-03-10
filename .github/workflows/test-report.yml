@@ -1,0 +1,53 @@
+name: AI Test Report
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches:
+      - main
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  test-report:
+    name: Generate & Run AI Test Cases
+    runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'pull_request' ||
+      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@test'))
+
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.ref || github.head_ref }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install openai pytest
+
+      - name: Generate diff
+        run: git diff origin/main...HEAD > /tmp/diff.txt
+
+      - name: Generate test cases, run them, and build report
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          API_BASE_URL: "https://api.openai.com/v1"
+          REVIEW_MODEL: "gpt-4o"
+        run: python .github/scripts/generate_test_report.py > /tmp/test_report.md
+
+      - name: Post test report on PR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
+        run: gh pr comment "$PR_NUMBER" --body-file /tmp/test_report.md
