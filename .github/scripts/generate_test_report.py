@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""Generate a compact test report for a PR.
+"""Generate a detailed test report for a PR.
 
 Three layers run in sequence:
   1. Static validators (always runs, deterministic)
   2. AI-generated pytest tests (best effort, wrapped in try/except)
   3. Snowflake validation queries (best effort, skipped if no credentials)
 
-The report is compact: summary table + only failing categories expanded.
+The report shows per-category sections with per-file check tables.
 
 Environment variables:
   OPENAI_API_KEY / OPENROUTER_API_KEY / ANTHROPIC_API_KEY
@@ -200,7 +200,7 @@ def run_tests(test_code: str, repo_root: str) -> tuple[str, int, int, int]:
 
 
 # ---------------------------------------------------------------------------
-# Compact report builder
+# Detailed report builder
 # ---------------------------------------------------------------------------
 
 def _result_icon(status: str) -> str:
@@ -216,7 +216,7 @@ def build_report(
     ai_errors: int,
     snowflake_results: list[SnowflakeResult] | None,
 ) -> str:
-    """Build compact Markdown report: summary table + failing categories expanded."""
+    """Build detailed Markdown report with per-category sections and per-file tables."""
 
     # Flatten all checks into a single list with source tag
     all_checks: list[dict] = []
@@ -224,11 +224,14 @@ def build_report(
         short = pathlib.PurePosixPath(filepath).name
         for r in results:
             all_checks.append({
-                "name": r.name, "file": short, "status": r.status,
-                "detail": r.detail, "category": r.category, "source": "static",
+                "name": r.name, "file": short, "filepath": filepath,
+                "status": r.status, "detail": r.detail,
+                "category": r.category, "source": "static",
+                "severity": r.severity,
             })
 
     # AI-generated test results
+    ai_checks: list[dict] = []
     if ai_result:
         for t in ai_result.get("test_summary", []):
             name = t.get("name", "unknown")
@@ -241,32 +244,36 @@ def build_report(
                     status = "ERROR"
             else:
                 status = "PASS" if ai_passed > 0 else "SKIP"
-            all_checks.append({
-                "name": name, "file": "AI", "status": status,
-                "detail": t.get("checks", ""), "category": t.get("category", 0),
-                "source": "ai",
-            })
+            entry = {
+                "name": name, "file": "AI", "filepath": "AI",
+                "status": status, "detail": t.get("checks", ""),
+                "category": t.get("category", 0), "source": "ai",
+                "severity": t.get("severity", "WARNING"),
+            }
+            ai_checks.append(entry)
+            all_checks.append(entry)
 
     # Snowflake results
-    sf_passed = sf_failed = 0
+    sf_checks: list[dict] = []
     sf_skipped = False
     if snowflake_results:
         for sr in snowflake_results:
             if sr.status == "SKIP":
                 sf_skipped = True
                 continue
-            all_checks.append({
-                "name": sr.name, "file": "Snowflake", "status": sr.status,
-                "detail": sr.detail, "category": sr.category, "source": "snowflake",
-            })
-            if sr.status == "PASS":
-                sf_passed += 1
-            elif sr.status in ("FAIL", "ERROR"):
-                sf_failed += 1
+            entry = {
+                "name": sr.name, "file": "Snowflake", "filepath": "Snowflake",
+                "status": sr.status, "detail": sr.detail,
+                "category": sr.category, "source": "snowflake",
+                "severity": "CRITICAL" if sr.status in ("FAIL", "ERROR") else "INFO",
+            }
+            sf_checks.append(entry)
+            all_checks.append(entry)
 
     # Counts
     total_passed = sum(1 for c in all_checks if c["status"] == "PASS")
-    total_failed = sum(1 for c in all_checks if c["status"] == "FAIL")
+    total_failed = sum(1 for c in all_checks if c["status"] in ("FAIL", "ERROR"))
+    total_warnings = sum(1 for c in all_checks if c["status"] == "WARNING")
     total = len(all_checks)
 
     if total_failed == 0:
@@ -280,59 +287,104 @@ def build_report(
     r.append("## Test Report")
     r.append("")
     r.append(f"**Status:** {status_icon} {status_text}")
-    r.append(f"**Files:** {len(static_results)} | **Checks:** {total_passed} passed, {total_failed} failed")
+    r.append(f"**Files analyzed:** {len(static_results)} | "
+             f"**Checks:** {total_passed} passed, {total_failed} failed, {total_warnings} warnings")
     r.append("")
+
+    # --- Per-category detailed sections ---
+    for cat_num in range(1, 6):
+        cat_static = [c for c in all_checks if c["category"] == cat_num and c["source"] == "static"]
+        cat_ai = [c for c in ai_checks if c["category"] == cat_num]
+        cat_sf = [c for c in sf_checks if c["category"] == cat_num]
+        cat_all = cat_static + cat_ai + cat_sf
+
+        if not cat_all:
+            continue
+
+        cat_passed = sum(1 for c in cat_all if c["status"] == "PASS")
+        cat_failed = sum(1 for c in cat_all if c["status"] in ("FAIL", "ERROR"))
+        cat_icon = "✅" if cat_failed == 0 else "❌"
+
+        r.append(f"### {cat_icon} Category {cat_num} — {CATEGORY_NAMES[cat_num]}")
+        r.append(f"> {cat_passed} passed, {cat_failed} failed out of {len(cat_all)} checks")
+        r.append("")
+
+        # Static checks grouped by file
+        if cat_static:
+            r.append("#### Static Checks")
+            r.append("")
+            # Group by file
+            files_seen = []
+            for c in cat_static:
+                if c["filepath"] not in files_seen:
+                    files_seen.append(c["filepath"])
+
+            for fp in files_seen:
+                file_checks = [c for c in cat_static if c["filepath"] == fp]
+                r.append(f"**`{file_checks[0]['file']}`**")
+                r.append("")
+                r.append("| Check | Result | Detail |")
+                r.append("|-------|--------|--------|")
+                for c in file_checks:
+                    icon = _result_icon(c["status"])
+                    r.append(f"| {c['name']} | {icon} {c['status']} | {c['detail']} |")
+                r.append("")
+
+        # AI-generated test results for this category
+        if cat_ai:
+            r.append("#### AI-Generated Tests")
+            r.append("")
+            r.append("| Test | Result | What it validates |")
+            r.append("|------|--------|-------------------|")
+            for c in cat_ai:
+                icon = _result_icon(c["status"])
+                r.append(f"| {c['name']} | {icon} {c['status']} | {c['detail']} |")
+            r.append("")
+
+        # Snowflake validation results for this category
+        if cat_sf:
+            r.append("#### Snowflake Validation")
+            r.append("")
+            r.append("| Query | Result | Detail |")
+            r.append("|-------|--------|--------|")
+            for c in cat_sf:
+                icon = _result_icon(c["status"])
+                r.append(f"| {c['name']} | {icon} {c['status']} | {c['detail']} |")
+            r.append("")
+
+    # --- Snowflake skipped notice ---
+    if sf_skipped and not sf_checks:
+        r.append("### ⏭️ Snowflake Validation")
+        r.append("> Skipped — no credentials configured (set `SNOWFLAKE_ACCOUNT`/`USER`/`PASSWORD`)")
+        r.append("")
 
     # --- Summary table ---
-    r.append("| Category | Result |")
-    r.append("|----------|--------|")
+    r.append("---")
+    r.append("### Summary")
+    r.append("")
+    r.append("| Category | Passed | Failed | Total |")
+    r.append("|----------|--------|--------|-------|")
 
-    failing_cats = []
     for cat_num in range(1, 6):
-        cat_checks = [c for c in all_checks if c["category"] == cat_num]
-        cp = sum(1 for c in cat_checks if c["status"] == "PASS")
-        cf = sum(1 for c in cat_checks if c["status"] in ("FAIL", "ERROR"))
-        ct = cp + cf + sum(1 for c in cat_checks if c["status"] in ("WARNING", "SKIP"))
+        cat_all = [c for c in all_checks if c["category"] == cat_num]
+        if not cat_all:
+            continue
+        cp = sum(1 for c in cat_all if c["status"] == "PASS")
+        cf = sum(1 for c in cat_all if c["status"] in ("FAIL", "ERROR"))
+        ct = len(cat_all)
         icon = "✅" if cf == 0 else "❌"
-        r.append(f"| {cat_num} — {CATEGORY_NAMES[cat_num]} | {icon} {cp}/{ct} |")
-        if cf > 0:
-            failing_cats.append(cat_num)
+        r.append(f"| {icon} {cat_num} — {CATEGORY_NAMES[cat_num]} | {cp} | {cf} | {ct} |")
 
-    # Snowflake row
-    if snowflake_results:
-        sf_checks = [c for c in all_checks if c["source"] == "snowflake"]
-        if sf_skipped:
-            r.append("| Snowflake Validation | ⏭️ Skipped (no credentials) |")
-        elif sf_checks:
-            sf_total = len(sf_checks)
-            sf_p = sum(1 for c in sf_checks if c["status"] == "PASS")
-            sf_icon = "✅" if sf_failed == 0 else "❌"
-            r.append(f"| Snowflake Validation | {sf_icon} {sf_p}/{sf_total} |")
+    if sf_checks:
+        sfp = sum(1 for c in sf_checks if c["status"] == "PASS")
+        sff = sum(1 for c in sf_checks if c["status"] in ("FAIL", "ERROR"))
+        sf_icon = "✅" if sff == 0 else "❌"
+        r.append(f"| {sf_icon} Snowflake Validation | {sfp} | {sff} | {len(sf_checks)} |")
+    elif sf_skipped:
+        r.append("| ⏭️ Snowflake Validation | — | — | Skipped |")
 
+    r.append(f"| **Total** | **{total_passed}** | **{total_failed}** | **{total}** |")
     r.append("")
-
-    # --- Expand failing categories ---
-    for cat_num in failing_cats:
-        cat_checks = [c for c in all_checks if c["category"] == cat_num and c["status"] in ("FAIL", "ERROR")]
-        r.append(f"### ❌ Category {cat_num} — {CATEGORY_NAMES[cat_num]}")
-        r.append("")
-        r.append("| Check | File | Detail |")
-        r.append("|-------|------|--------|")
-        for c in cat_checks:
-            r.append(f"| {c['name']} | {c['file']} | ❌ {c['detail']} |")
-        r.append("")
-
-    # --- All checks collapsed ---
-    r.append(f"<details><summary>All checks ({total})</summary>")
-    r.append("")
-    r.append("| Check | File | Cat | Result |")
-    r.append("|-------|------|-----|--------|")
-    for c in all_checks:
-        icon = _result_icon(c["status"])
-        cat_label = f"{c['category']}" if c["category"] in range(1, 6) else "—"
-        r.append(f"| {c['name']} | {c['file']} | {cat_label} | {icon} {c['status']} |")
-    r.append("")
-    r.append("</details>")
 
     return "\n".join(r)
 
