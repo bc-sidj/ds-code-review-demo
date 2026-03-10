@@ -1,11 +1,14 @@
-## Summary
+## What/Why?
+
+<!-- Jira ticket(s) and brief description of the change -->
+- [DS-XXXX](https://bigcommercecloud.atlassian.net/browse/DS-XXXX)
 
 <!-- Brief description of what this PR does and why -->
 
-## Jira Ticket
+## Acceptance Criteria
 
-<!-- Link to the Jira ticket (required) -->
-- [ ] Ticket: [DS-XXXX](https://bigcommerce.atlassian.net/browse/DS-XXXX)
+<!-- What needs to be true for this PR to be considered complete? -->
+- 
 
 ## Type of Change
 
@@ -23,19 +26,27 @@
 
 ## Testing
 
-<!-- Describe how this was tested -->
-- [ ] Airflow tasks tested with production-equivalent data
-- [ ] SQL changes validated in Snowflake (dev/staging)
+<!-- Link to testing documentation in Google Drive -->
+- [ ] [Testing documentation](https://drive.google.com/)
 - [ ] Edge cases verified (empty data, NULLs, duplicates, date boundaries)
-- [ ] Testing documentation saved to [Google Drive](https://drive.google.com/) at `Ops & Analytics/Data Solutions/Unit Testing + Rollout/`
 
-## Rollout
+## Rollout/Rollback
 
-<!-- Required for DDL/DML or complex Airflow changes -->
-- [ ] Rollout doc created and saved to Google Drive
-- [ ] Rollout doc includes `sp_rollout('start', ...)` and `sp_rollout('end', ...)`
-- [ ] Backout plan documented
-- [ ] N/A — no rollout needed for this change
+**Airflow changes:** <!-- e.g., Github Actions, manual deploy, none -->
+
+**Database changes:** <!-- e.g., DDL/DML scripts, none -->
+
+**AWS Variables:**
+- Variable name: <!-- e.g., /airflow/variables/ds_variable_name -->
+- Value: <!-- e.g., stages.production.example -->
+
+**Environment Variables (Astronomer):** <!-- e.g., None -->
+
+**Re-run all relevant jobs in production:** <!-- e.g., None, or list jobs -->
+
+**Other changes:** <!-- e.g., None -->
+
+**Rollback considerations:** <!-- e.g., None, or describe rollback steps -->
 
 ## Checklist
 
