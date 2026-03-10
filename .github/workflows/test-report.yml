@@ -34,16 +34,22 @@ jobs:
           python-version: "3.12"
 
       - name: Install dependencies
-        run: pip install openai pytest
+        run: pip install openai pytest snowflake-connector-python
 
       - name: Generate diff
         run: git diff origin/main...HEAD > /tmp/diff.txt
 
-      - name: Generate test cases, run them, and build report
+      - name: Generate test report
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           API_BASE_URL: "https://api.openai.com/v1"
           REVIEW_MODEL: "gpt-4o"
+          SNOWFLAKE_ACCOUNT: ${{ secrets.SNOWFLAKE_ACCOUNT }}
+          SNOWFLAKE_USER: ${{ secrets.SNOWFLAKE_USER }}
+          SNOWFLAKE_PASSWORD: ${{ secrets.SNOWFLAKE_PASSWORD }}
+          SNOWFLAKE_WAREHOUSE: ${{ secrets.SNOWFLAKE_WAREHOUSE }}
+          SNOWFLAKE_DATABASE: ${{ secrets.SNOWFLAKE_DATABASE }}
+          SNOWFLAKE_ROLE: ${{ secrets.SNOWFLAKE_ROLE }}
         run: python .github/scripts/generate_test_report.py > /tmp/test_report.md
 
       - name: Post test report on PR
