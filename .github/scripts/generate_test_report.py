@@ -57,8 +57,18 @@ For SQL (.sql) file changes, generate tests that check:
 Each test must have a clear docstring explaining what it validates. \
 Use descriptive test names like `test_dag_has_catchup_false` or `test_view_has_jira_comment`.
 
-The test file should read the changed files from disk using these paths relative to the repo root. \
-Use `pathlib.Path(__file__).resolve().parent.parent` to get the repo root.
+IMPORTANT — File paths: The test file will run in a temp directory, NOT inside the repo. \
+To find the repo root, ALWAYS use `os.environ["REPO_ROOT"]`. \
+For example, to read a DAG file:
+```python
+import os
+repo_root = os.environ["REPO_ROOT"]
+dag_path = os.path.join(repo_root, "dags", "dag_store_metrics.py")
+with open(dag_path) as f:
+    source = f.read()
+```
+NEVER use __file__ to resolve paths. NEVER hardcode /tmp/ or any absolute path. \
+ALWAYS use os.environ["REPO_ROOT"] as the base for all file paths.
 
 ## 2. SQL validation queries
 
@@ -138,6 +148,9 @@ def run_tests(test_code: str, repo_root: str) -> tuple[str, int, int, int]:
         test_file = pathlib.Path(tmpdir) / "test_pr_changes.py"
         test_file.write_text(test_code)
 
+        env = os.environ.copy()
+        env["REPO_ROOT"] = repo_root
+
         result = subprocess.run(
             [
                 sys.executable, "-m", "pytest",
@@ -149,6 +162,7 @@ def run_tests(test_code: str, repo_root: str) -> tuple[str, int, int, int]:
             capture_output=True,
             text=True,
             cwd=repo_root,
+            env=env,
         )
 
         output = result.stdout + result.stderr
