@@ -1,6 +1,6 @@
 # Test Cases — DS Automated Code Review
 
-**Total tests:** 110
+**Total tests:** 131
 **Test runner:** pytest
 **Run command:** `python3 -m pytest tests/ -v`
 
@@ -10,16 +10,28 @@
 
 | File | Tests | What it validates |
 |------|-------|-------------------|
-| `test_dag_standards.py` | 34 | Python/Airflow DAG standards (buggy=17 issues, clean=17 checks) |
-| `test_sql_standards.py` | 25 | SQL/Snowflake DDL/DML standards (buggy=13 issues, clean=12 checks) |
-| `test_review_script.py` | 22 | review.py and generate_pr_description.py script structure |
-| `test_edge_cases.py` | 29 | Edge case handling + repo structure validation |
+| `test_dag_standards.py` | 40 | Python/Airflow DAG standards (buggy=20 issues, clean=20 checks) |
+| `test_sql_standards.py` | 31 | SQL/Snowflake DDL/DML standards (buggy=18 issues, clean=13 checks) |
+| `test_review_script.py` | 25 | review.py and generate_pr_description.py script structure |
+| `test_edge_cases.py` | 35 | Edge case handling + repo structure validation |
+
+---
+
+## Testing Categories (5 DS Validation Types)
+
+The test suite is organized around 5 high-level testing categories identified from the DS team's 2025 rollout and testing practices:
+
+1. **Data Integrity** — HASH_AGG fingerprinting, row counts, MINUS comparisons
+2. **Schema & DDL Compliance** — sp_rollout wrapping, COMMENT with ticket, information_schema validation
+3. **Regression** — HASH_AGG EXCLUDE for unchanged columns, cross-environment DEV vs PROD comparisons
+4. **Edge Cases** — NULL handling, divide-by-zero, duplicates, ambiguity in ROW_NUMBER, VARCHAR truncation
+5. **Business Logic & Downstream** — security.table_usage_summary checks, financial metric reconciliation
 
 ---
 
 ## 1. Python / Airflow DAG Standards (`test_dag_standards.py`)
 
-### Buggy DAG — 17 Issues Detected
+### Buggy DAG — 20 Issues Detected
 
 | # | Test | DS Standard | Severity |
 |---|------|-------------|----------|
@@ -40,8 +52,11 @@
 | 15 | `test_bug15_deprecated_provide_context` | Uses deprecated `provide_context=True` | WARNING |
 | 16 | `test_bug16_no_failure_callback` | No `on_failure_callback` on any task | WARNING |
 | 17 | `test_bug17_orphaned_task` | `cleanup` task not in dependency chain | WARNING |
+| 18 | `test_bug18_no_validation_task` | No data integrity validation task after load | WARNING |
+| 19 | `test_bug19_no_regression_check` | No HASH_AGG or regression comparison task | WARNING |
+| 20 | `test_bug20_no_downstream_awareness` | No downstream dependency documentation | WARNING |
 
-### Clean DAG — 17 Checks Passed
+### Clean DAG — 20 Checks Passed
 
 | Test | DS Standard |
 |------|-------------|
@@ -54,7 +69,7 @@
 | `test_uses_airflow_connection` | Uses `snowflake_conn_id` (Airflow Connection) |
 | `test_on_failure_callback_present` | `on_failure_callback` configured |
 | `test_no_provide_context` | No deprecated `provide_context` |
-| `test_no_orphaned_tasks` | All tasks connected: `extract >> transform >> validate` |
+| `test_no_orphaned_tasks` | All tasks connected: `extract >> transform >> validate >> regression_check` |
 | `test_fully_qualified_table_names` | SQL uses `FIL.STORE`, `FIL.STORE_METRICS_DAILY` |
 | `test_divide_by_zero_protection` | `CASE WHEN total_orders > 0` guards division |
 | `test_null_handling_with_coalesce` | `COALESCE` wraps nullable fields |
@@ -62,12 +77,15 @@
 | `test_no_todo_comments` | No `TODO`/`FIXME` in code |
 | `test_jira_ticket_in_docstring` | DS-4521 referenced in docstring |
 | `test_has_dag_tags` | DAG has `tags=` for discoverability |
+| `test_has_validation_task` | Data integrity validation task after transform |
+| `test_has_regression_check` | Regression check task compares today vs yesterday |
+| `test_downstream_dependencies_documented` | Downstream consumers documented in comments |
 
 ---
 
 ## 2. SQL / Snowflake DDL/DML Standards (`test_sql_standards.py`)
 
-### Buggy SQL — 13 Issues Detected
+### Buggy SQL — 18 Issues Detected
 
 | # | Test | DS Standard | Severity |
 |---|------|-------------|----------|
@@ -84,8 +102,13 @@
 | 11 | `test_bug11_subquery_missing_where` | Orders subquery has no WHERE (full table scan) | WARNING |
 | 12 | `test_bug12_inner_join_drops_zero_order_stores` | INNER JOIN silently drops stores with no orders | WARNING |
 | 13 | `test_bug13_update_without_where` | `UPDATE` without `WHERE` clause | CRITICAL |
+| 14 | `test_bug14_missing_sp_rollout` | No sp_rollout wrapping for rollout SQL | CRITICAL |
+| 15 | `test_bug15_no_backup_before_change` | No CLONE backup before destructive change | WARNING |
+| 16 | `test_bug16_nondeterministic_row_number` | ROW_NUMBER ORDER BY lacks tiebreaker — ambiguity risk | WARNING |
+| 17 | `test_bug17_varchar_too_small` | VARCHAR(50) too small for store descriptions | WARNING |
+| 18 | `test_bug18_no_downstream_check` | No downstream dependency check documented | WARNING |
 
-### Clean SQL — 12 Checks Passed
+### Clean SQL — 13 Checks Passed
 
 | Test | DS Standard |
 |------|-------------|
@@ -101,12 +124,19 @@
 | `test_subquery_has_where_clause` | Orders subquery filters by date |
 | `test_has_active_filter` | Filters `is_active = TRUE` |
 | `test_no_update_without_where` | No unguarded UPDATE/DELETE |
+| `test_has_sp_rollout_wrapping` | Rollout SQL wrapped with sp_rollout start/end |
+| `test_has_backup_clone` | Backup created via CLONE before changes |
+| `test_clone_has_drop_date_comment` | CLONE backup has drop date in comment |
+| `test_deterministic_row_number` | ROW_NUMBER has deterministic ORDER BY with tiebreaker |
+| `test_adequate_varchar_length` | VARCHAR length adequate (not truncation-prone) |
+| `test_downstream_check_documented` | Downstream dependency check documented |
+| `test_role_returns_to_dev` | Rollout ends with dev role switch |
 
 ---
 
 ## 3. Review Script Validation (`test_review_script.py`)
 
-### review.py — 16 Tests
+### review.py — 19 Tests
 
 | Test | What it validates |
 |------|-------------------|
@@ -123,7 +153,10 @@
 | `test_prompt_covers_sql_checks` | Prompt covers qualified names, WHERE, COMMENT |
 | `test_prompt_includes_severity_levels` | Prompt uses CRITICAL/WARNING/SUGGESTION/PASS |
 | `test_prompt_includes_sox_reminder` | Prompt includes SOX compliance note |
-| `test_prompt_requests_test_cases` | Prompt asks for pytest stubs + SQL validation |
+| `test_prompt_requests_test_cases` | Prompt asks for generated test cases + validation |
+| `test_prompt_covers_rollout_standards` | Prompt checks sp_rollout wrapping and dev role |
+| `test_prompt_covers_five_testing_categories` | Prompt references all 5 DS testing categories |
+| `test_prompt_covers_hash_agg` | Prompt mentions HASH_AGG for data comparison |
 | `test_configurable_model` | Model configurable via `REVIEW_MODEL` env var |
 | `test_configurable_base_url` | Base URL configurable via `API_BASE_URL` env var |
 
@@ -171,7 +204,7 @@
 | `test_inner_join_drops_rows` | INNER JOIN silently drops zero-order stores |
 | `test_full_table_scan_on_orders` | Orders subquery has no WHERE clause |
 | `test_update_affects_all_rows` | UPDATE with no WHERE modifies every row |
-| `test_no_duplicate_handling` | No DISTINCT or deduplication logic |
+| `test_no_duplicate_handling` | No DISTINCT or QUALIFY deduplication logic |
 
 ### Clean SQL — Edge Cases Handled (5 tests)
 

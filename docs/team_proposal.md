@@ -18,8 +18,8 @@ This slows down our velocity, creates bottlenecks when reviewers are busy, and m
 
 Add an **automated first-pass review** powered by AI that runs at two points in our workflow:
 
-**Layer 1 — Before the PR (in Cursor)**
-Ask Cursor's AI to follow the review instructions in `docs/code-review-instructions.md`. It reviews your diff locally and generates a report in under a minute. You fix issues before anyone else ever sees your code.
+**Layer 1 — Before the PR (with Claude)**
+Ask Claude to follow the review instructions in `docs/code-review-instructions.md`. It reviews your diff locally and generates a report in under a minute. You fix issues before anyone else ever sees your code.
 
 **Layer 2 — On the PR (GitHub Action)**
 An automated GitHub Action that triggers every time a PR is opened or updated. The workflow calls the OpenAI API with the PR diff and posts a structured review comment directly on the PR — before a human reviewer opens it.
@@ -64,7 +64,7 @@ CURRENT PROCESS                    NEW PROCESS
 ─────────────────                  ──────────────────────────
 Write code                         Write code
   │                                  │
-  │                                Ask Cursor AI to review       ← NEW
+  │                                Ask Claude to review            ← NEW
   │                                  │
   │                                Fix issues found locally      ← NEW
   │                                  │
@@ -114,7 +114,7 @@ cp dags/buggy/* dags/
 cp ddl/fuji/vz_apps/buggy/* ddl/fuji/vz_apps/
 git add . && git commit -m "DS-9999 Add store metrics DAG and view"
 
-# 3. Open in Cursor and ask the AI to review
+# 3. Open with Claude and ask it to review
 #    "Follow the instructions in docs/code-review-instructions.md to review changes on this branch."
 
 # 4. Push and open a PR to see the GitHub Action in action

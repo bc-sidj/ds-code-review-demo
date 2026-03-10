@@ -32,7 +32,7 @@ def find_unqualified_tables(sql: str, known_tables: list[str]) -> list[str]:
 # ===========================================================================
 
 class TestBuggySqlIssues:
-    """Verify the buggy SQL contains all 13 intentional issues."""
+    """Verify the buggy SQL contains all 18 intentional issues."""
 
     def test_bug01_missing_use_database(self, buggy_sql_source):
         """BUG 1: No USE DATABASE FUJI statement."""
@@ -111,6 +111,30 @@ class TestBuggySqlIssues:
         update_section = buggy_sql_source.split("UPDATE")[1] if "UPDATE" in buggy_sql_source else ""
         assert "WHERE" not in update_section.upper().split(";")[0]
 
+    def test_bug14_missing_sp_rollout(self, buggy_sql_source):
+        """BUG 14: No sp_rollout wrapping for rollout SQL."""
+        assert "sp_rollout" not in buggy_sql_source
+
+    def test_bug15_no_backup_before_change(self, buggy_sql_source):
+        """BUG 15: No CLONE backup before destructive change."""
+        assert "CLONE" not in buggy_sql_source.upper()
+
+    def test_bug16_nondeterministic_row_number(self, buggy_sql_source):
+        """BUG 16: ROW_NUMBER ORDER BY lacks tiebreaker — ambiguity risk."""
+        assert "ROW_NUMBER()" in buggy_sql_source.upper()
+        # The ORDER BY amount alone is non-deterministic when amounts are equal
+        rn_section = buggy_sql_source.upper().split("ROW_NUMBER()")[1].split("AS RN")[0]
+        assert "ORDER BY AMOUNT" in rn_section
+        assert "ORDER_ID" not in rn_section  # No tiebreaker column
+
+    def test_bug17_varchar_too_small(self, buggy_sql_source):
+        """BUG 17: VARCHAR(50) is too small for store descriptions."""
+        assert "VARCHAR(50)" in buggy_sql_source.upper()
+
+    def test_bug18_no_downstream_check(self, buggy_sql_source):
+        """BUG 18: No downstream dependency check documented."""
+        assert "security.table_usage_summary" not in buggy_sql_source
+
 
 # ===========================================================================
 # CLEAN SQL — Should pass all DS team checks
@@ -186,3 +210,32 @@ class TestCleanSqlPasses:
             if keyword in clean_sql_source.upper():
                 stmt = clean_sql_source.upper().split(keyword)[1].split(";")[0]
                 assert "WHERE" in stmt
+
+    def test_has_sp_rollout_wrapping(self, clean_sql_source):
+        """Rollout SQL wrapped with sp_rollout start and end."""
+        assert "sp_rollout('start'" in clean_sql_source
+        assert "sp_rollout('end'" in clean_sql_source
+
+    def test_has_backup_clone(self, clean_sql_source):
+        """Backup created via CLONE before destructive changes."""
+        assert "CLONE" in clean_sql_source.upper()
+
+    def test_clone_has_drop_date_comment(self, clean_sql_source):
+        """Backup CLONE has a comment with drop date."""
+        assert "Drop after" in clean_sql_source
+
+    def test_deterministic_row_number(self, clean_sql_source):
+        """ROW_NUMBER has deterministic ORDER BY with tiebreaker."""
+        assert "order by amount desc, order_id desc" in clean_sql_source.lower()
+
+    def test_adequate_varchar_length(self, clean_sql_source):
+        """VARCHAR length is adequate (not truncation-prone)."""
+        assert "VARCHAR(500)" in clean_sql_source.upper()
+
+    def test_downstream_check_documented(self, clean_sql_source):
+        """Downstream dependency check is documented."""
+        assert "security.table_usage_summary" in clean_sql_source
+
+    def test_role_returns_to_dev(self, clean_sql_source):
+        """Rollout ends with dev role switch."""
+        assert "FUJI_DEV_OWNER" in clean_sql_source

@@ -82,9 +82,24 @@ class TestReviewScript:
         assert "SOX" in review_script_source
 
     def test_prompt_requests_test_cases(self, review_script_source):
-        """Review prompt asks for pytest stubs and SQL validation queries."""
-        assert "pytest" in review_script_source
+        """Review prompt asks for generated test cases and validation queries."""
+        assert "Generated Test Cases" in review_script_source
         assert "validation" in review_script_source.lower()
+
+    def test_prompt_covers_rollout_standards(self, review_script_source):
+        """Review prompt checks for sp_rollout wrapping and rollout standards."""
+        assert "sp_rollout" in review_script_source
+        assert "FUJI_DEV_OWNER" in review_script_source
+
+    def test_prompt_covers_five_testing_categories(self, review_script_source):
+        """Review prompt references all 5 DS testing categories."""
+        assert "Data Integrity" in review_script_source
+        assert "Regression" in review_script_source
+        assert "Downstream" in review_script_source
+
+    def test_prompt_covers_hash_agg(self, review_script_source):
+        """Review prompt mentions HASH_AGG for data comparison."""
+        assert "HASH_AGG" in review_script_source
 
     def test_configurable_model(self, review_script_source):
         """Model is configurable via REVIEW_MODEL env var."""

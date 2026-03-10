@@ -66,17 +66,37 @@ For EACH changed file, create a section with findings using these severity level
 - Object COMMENT includes ticket: COMMENT = 'DS-XXXX ...'
 - All UPDATE/DELETE have WHERE clause (CRITICAL if missing)
 - No unnecessary SELECT *, NULL propagation in JOINs, divide-by-zero
+- Field length: will new data fit in existing VARCHAR columns?
+- Non-deterministic ordering in QUALIFY/ROW_NUMBER (ambiguity risk)
+
+**For Rollout SQL files check:**
+- sp_rollout('start', ...) and sp_rollout('end', ...) bookends present
+- Backout/backup tables use CLONE with COMMENT including ticket + drop date
+- Multi-step rollouts have ordered comments (--Step 1:, --Step 2:, etc.)
+- Role switching returns to dev role at end (USE ROLE FUJI_DEV_OWNER)
+- Stash pattern used for deprecated objects (move to FUJI_STASH before drop)
 
 ### Edge Cases Summary
 List all detected edge cases with file and line references.
 
-### Generated Test Cases
+### Generated Test Cases (5 DS Testing Categories)
 
-**Python (pytest stubs):** For each .py file, stubs for: happy path, empty input, \
-NULL values, date boundaries, upstream failure.
+**Category 1 — Data Integrity:** For each .sql file: HASH_AGG(*) before/after, \
+row count check, MINUS comparison for exact diffs, column-level HASH_AGG EXCLUDE.
 
-**SQL (validation queries):** For each .sql file: row count check, NULL check on \
-key columns, duplicate check, range/sanity check, spot-check.
+**Category 2 — Schema & DDL Compliance:** Schema inspection via information_schema, \
+COMMENT verification, sp_rollout wrapping check.
+
+**Category 3 — Regression:** HASH_AGG(* EXCLUDE (changed_cols)) DEV vs PROD, \
+cross-environment comparison queries, historical data preservation checks.
+
+**Category 4 — Edge Cases:** For .py: empty input, NULL, date boundaries, \
+upstream failure, divide-by-zero, ambiguity. For .sql: NULL check on key cols, \
+duplicate check, range/sanity check.
+
+**Category 5 — Business Logic & Downstream:** Downstream dependency query \
+(security.table_usage_summary), spot-check with known values, aggregate validation \
+for financial tables.
 
 ### Summary
 | Metric | Count |

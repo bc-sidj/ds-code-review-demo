@@ -92,8 +92,11 @@ For every `.sql` file in the diff, perform the following checks:
 
 **Rollout Readiness:**
 - If a rollout doc is being reviewed: `sp_rollout('start', ...)` and `sp_rollout('end', ...)` calls present
-- Backout table (if present) uses `CLONE` and has a `COMMENT` with ticket + expiry date
+- Backout table (if present) uses `CLONE` and has a `COMMENT` with ticket + expiry date (e.g., `'Drop after YYYY-MM-DD'`)
 - Rollout can be safely run in order without manual intervention
+- Multi-step rollouts must have ordered comments: `--Step 1:`, `--Step 2:`, etc.
+- Role switching: must return to dev role (e.g., `USE ROLE FUJI_DEV_OWNER`) at end of rollout
+- Stash pattern: deprecated objects should be moved to `FUJI_STASH` before dropping
 
 **Edge Cases — flag any of the following if not handled:**
 - NULL propagation in JOINs (LEFT vs INNER correctness)
@@ -101,23 +104,51 @@ For every `.sql` file in the diff, perform the following checks:
 - Divide-by-zero in any calculated columns
 - Empty result set scenarios — does downstream logic handle zero rows?
 - Data type mismatches in JOINs or comparisons
+- Field length truncation — will new data fit in existing VARCHAR columns?
+- Non-deterministic ordering in QUALIFY/ROW_NUMBER (ambiguity risk)
 
 ### 5. Test Case Generation
 
-For each changed **Python file**, generate `pytest` test stubs covering:
-1. **Happy path** — typical valid input produces expected output
-2. **Empty input** — function/task handles zero records gracefully
-3. **NULL values** — key fields containing NULL don't cause crashes
-4. **Date boundaries** — start/end of month, year, DST transitions
-5. **Upstream failure** — task behaves correctly when upstream fails or returns no XCom
-6. **Large volume** — note that performance should be validated at scale
+Generate test stubs organized by the **5 DS Testing Categories**:
 
-For each changed **SQL file**, generate validation query stubs:
-1. **Row count check** — `SELECT COUNT(*) FROM <table>` before and after, compare
-2. **NULL check** on primary/key columns: `SELECT COUNT(*) FROM <table> WHERE <key_col> IS NULL`
-3. **Duplicate check**: `SELECT <key_col>, COUNT(*) FROM <table> GROUP BY 1 HAVING COUNT(*) > 1`
-4. **Range/sanity check** on numeric columns: `SELECT MIN(<col>), MAX(<col>), AVG(<col>) FROM <table>`
-5. **Sample spot-check**: `SELECT * FROM <table> WHERE <key_col> IN (<known_test_values>) LIMIT 10`
+#### Category 1: Data Integrity Validation
+For each changed **SQL file**, generate:
+1. **HASH_AGG fingerprint** — `SELECT HASH_AGG(*) FROM <table>` before and after, compare
+2. **Row count check** — `SELECT COUNT(*) FROM <table>` and `SELECT COUNT(DISTINCT <key>) FROM <table>` before and after
+3. **MINUS comparison** — `SELECT * FROM <new_table> MINUS SELECT * FROM <old_table>` to find exact diffs
+4. **Column-level diff** — `SELECT HASH_AGG(* EXCLUDE (<changed_cols>)) FROM <table>` to isolate changes
+
+#### Category 2: Schema & DDL Compliance
+For each changed **SQL file**, generate:
+1. **Schema inspection** — `SELECT column_name, data_type FROM information_schema.columns WHERE table_schema = 'X' AND table_name = 'Y'`
+2. **Comment verification** — confirm `COMMENT` includes Jira ticket
+3. **sp_rollout wrapping** — verify rollout bookends are present
+
+#### Category 3: Regression Testing
+For each changed file, generate:
+1. **Unchanged data check** — `HASH_AGG(* EXCLUDE (<changed_columns>))` comparing DEV vs PROD
+2. **Cross-environment comparison** — `SELECT 'PROD', COUNT(*), HASH_AGG(*) FROM fuji.<table> UNION ALL SELECT 'DEV', COUNT(*), HASH_AGG(*) FROM fuji_dev.<table>`
+3. **Historical preservation** — verify prior-period data unchanged
+
+#### Category 4: Edge Case & Guard Rail Tests
+For each changed **Python file**, generate `pytest` stubs for:
+1. **Empty input** — function/task handles zero records gracefully
+2. **NULL values** — key fields containing NULL don't cause crashes
+3. **Date boundaries** — start/end of month, year, DST transitions
+4. **Upstream failure** — task behaves correctly when upstream fails or returns no XCom
+5. **Divide-by-zero** — calculations protected by CASE WHEN or NULLIF
+6. **Ambiguity** — ROW_NUMBER/QUALIFY has deterministic ORDER BY
+
+For each changed **SQL file**, generate:
+1. **NULL check** on primary/key columns: `SELECT COUNT(*) FROM <table> WHERE <key_col> IS NULL`
+2. **Duplicate check**: `SELECT <key_col>, COUNT(*) FROM <table> GROUP BY 1 HAVING COUNT(*) > 1`
+3. **Range/sanity check** on numeric columns: `SELECT MIN(<col>), MAX(<col>), AVG(<col>) FROM <table>`
+
+#### Category 5: Business Logic & Downstream Validation
+For each change, generate:
+1. **Downstream dependency check** — `SELECT * FROM security.table_usage_summary WHERE full_table_name = UPPER('<table>') AND user_name IN ('AIRFLOW', 'TABLEAU', 'TABLEAU_2')`
+2. **Spot-check**: `SELECT * FROM <table> WHERE <key_col> IN (<known_test_values>) LIMIT 10`
+3. **Aggregate validation** — for financial tables, verify SUM/COUNT of key metrics before/after
 
 ### 6. Write the Review Report
 

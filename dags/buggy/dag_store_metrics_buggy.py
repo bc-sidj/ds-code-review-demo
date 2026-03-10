@@ -4,7 +4,7 @@ Purpose: Pulls store metrics from Snowflake, transforms, and loads summary table
 Ticket: (none — intentionally missing for demo)
 
 === INTENTIONAL BUGS FOR DEMO ===
-This file has 17 issues that the automated review should catch.
+This file has 20 issues that the automated review should catch.
 See the companion file dags/clean/dag_store_metrics_clean.py for the fixed version.
 """
 
@@ -107,3 +107,13 @@ cleanup = PythonOperator(
     python_callable=lambda: print("cleaning up"),
     dag=dag,
 )
+
+# BUG 18: No validation task — data integrity not checked after load
+# (should verify row counts or at minimum COUNT(*) > 0 post-load)
+
+# BUG 19: No hash-based aggregation or before/after comparison for drift detection
+# (should compare loaded data against expected baseline to catch data drift)
+
+# BUG 20: No downstream dependency awareness — no check that downstream
+# DAGs/Tableau dashboards are not broken by this change
+# (should document or check downstream usage via security views)

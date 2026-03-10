@@ -1,6 +1,6 @@
-# Cursor Setup Prompt — Copy and Paste This
+# Claude Setup Prompt — Copy and Paste This
 
-Copy the prompt below into Cursor's AI chat to set up and test the automated code review demo repo end-to-end.
+Copy the prompt below into Claude to set up and test the automated code review demo repo end-to-end.
 
 ---
 

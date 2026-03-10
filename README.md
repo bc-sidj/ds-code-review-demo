@@ -24,8 +24,8 @@ ds-code-review-demo/
 │       └── vw_store_summary_clean.sql   # Fixed version (passes all checks)
 ├── code_reviews/                    # Local review reports land here (gitignored)
 ├── docs/
-│   ├── code-review-instructions.md  # Review checklist (reference prompt for Cursor)
-│   ├── cursor_setup_prompt.md       # Copy-paste prompt for first-time setup
+│   ├── code-review-instructions.md  # Review checklist (reference prompt for Claude)
+│   ├── claude_setup_prompt.md       # Copy-paste prompt for first-time setup
 │   └── team_proposal.md            # Proposal document to share with the team
 └── README.md                        # You are here
 ```
@@ -34,13 +34,13 @@ ds-code-review-demo/
 
 | Layer | Where | Trigger | Auth needed |
 |-------|-------|---------|-------------|
-| **Layer 1** — Local review | Cursor IDE | Ask the AI to follow the review instructions | None (uses your Cursor subscription) |
+| **Layer 1** — Local review | Claude | Ask the AI to follow the review instructions | None (uses your Claude subscription) |
 | **Layer 2** — PR review | GitHub Actions | Automatic on PR open/update | OpenAI API key stored as GitHub secret |
 
 ## Quick Start
 
 ### Prerequisites
-- **Cursor** IDE installed
+- **Claude** installed
 - Git + GitHub CLI (`gh`)
 - An **OpenAI API key** (for the GitHub Action) — get one at [platform.openai.com/api-keys](https://platform.openai.com/api-keys)
 
@@ -70,11 +70,11 @@ git add .
 git commit -m "DS-9999 Add store metrics DAG and view"
 ```
 
-Now open the project in **Cursor** and tell the AI:
+Now open the project in **Claude** and tell the AI:
 
 > Follow the instructions in `docs/code-review-instructions.md` to review the changes on this branch.
 
-Cursor will analyze the diff and generate a report at `code_reviews/code_review_<branch-name>.md`.
+Claude will analyze the diff and generate a report at `code_reviews/code_review_<branch-name>.md`.
 
 ### Step 4: Test the GitHub Action (Layer 2)
 ```bash
@@ -95,7 +95,7 @@ git add .
 git commit -m "DS-4521 Add store metrics DAG and view"
 ```
 
-Ask Cursor to run the code review again — this time the report should show mostly green checks.
+Ask Claude to run the code review again — this time the report should show mostly green checks.
 
 ## What gets reviewed
 

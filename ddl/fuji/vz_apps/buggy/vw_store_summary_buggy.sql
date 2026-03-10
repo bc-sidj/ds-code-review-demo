@@ -1,6 +1,6 @@
 -- =============================================================
 -- INTENTIONAL ISSUES FOR DEMO
--- This SQL file has 13 issues that the automated review should catch.
+-- This SQL file has 18 issues that the automated review should catch.
 -- See ddl/fuji/vz_apps/clean/vw_store_summary_clean.sql for the fixed version.
 -- =============================================================
 
@@ -42,3 +42,26 @@ INNER JOIN (
 UPDATE FIL.STORE_METRICS
 SET last_refreshed = CURRENT_TIMESTAMP();
 -- This updates EVERY row — is that intentional?
+
+-- BUG 14: Missing rollout procedure wrapping — DDL must be bookended with start/end calls
+
+-- BUG 15: No backup/backout before destructive change — should snapshot the table first
+
+-- BUG 16: ROW_NUMBER without deterministic ORDER BY — ambiguity risk
+CREATE OR REPLACE VIEW vz_apps.vw_latest_order AS
+SELECT * FROM (
+    SELECT
+        store_id,
+        order_id,
+        amount,
+        ROW_NUMBER() OVER (PARTITION BY store_id ORDER BY amount) AS rn
+    FROM orders
+) WHERE rn = 1;
+-- BUG 16: ORDER BY amount is non-deterministic when amounts are equal — should add order_id
+
+-- BUG 17: VARCHAR column may truncate — field length risk
+ALTER TABLE FIL.STORE_METRICS ADD COLUMN store_description VARCHAR(50);
+-- BUG 17: VARCHAR(50) is too small for store descriptions that can be 200+ chars
+
+-- BUG 18: No downstream dependency check documented
+-- (should verify no AIRFLOW/TABLEAU users query STORE_METRICS before modifying it)

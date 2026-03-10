@@ -70,13 +70,35 @@ with open(dag_path) as f:
 NEVER use __file__ to resolve paths. NEVER hardcode /tmp/ or any absolute path. \
 ALWAYS use os.environ["REPO_ROOT"] as the base for all file paths.
 
-## 2. SQL validation queries
+## 2. SQL validation queries (organized by DS Testing Categories)
 
-For any SQL file changes, generate validation queries that a reviewer could run in Snowflake:
-- Row count check
-- NULL check on key columns
-- Duplicate check
-- Range/sanity check on numeric columns
+For any SQL file changes, generate validation queries a reviewer could run in Snowflake, \
+organized by these 5 categories:
+
+**Category 1 — Data Integrity:**
+- HASH_AGG(*) fingerprint before/after
+- Row count check: SELECT COUNT(*) and COUNT(DISTINCT key)
+- MINUS comparison: SELECT * FROM new MINUS SELECT * FROM old
+
+**Category 2 — Schema & DDL Compliance:**
+- Schema inspection: SELECT column_name, data_type FROM information_schema.columns
+- COMMENT verification query
+- sp_rollout wrapping check
+
+**Category 3 — Regression:**
+- HASH_AGG(* EXCLUDE (changed_cols)) comparing DEV vs PROD
+- Cross-environment comparison: SELECT 'PROD', COUNT(*), HASH_AGG(*) UNION ALL SELECT 'DEV', ...
+- Historical data preservation: HASH_AGG on prior-period data
+
+**Category 4 — Edge Cases:**
+- NULL check on key columns: SELECT COUNT(*) WHERE key IS NULL
+- Duplicate check: SELECT key, COUNT(*) GROUP BY 1 HAVING COUNT(*) > 1
+- Range/sanity check on numeric columns: MIN, MAX, AVG
+
+**Category 5 — Business Logic & Downstream:**
+- Downstream dependency: SELECT * FROM security.table_usage_summary WHERE full_table_name = UPPER('<table>')
+- Spot-check: SELECT * FROM table WHERE key IN (known_values) LIMIT 10
+- Aggregate validation for financial tables
 
 Output your response as JSON with this exact structure:
 {{

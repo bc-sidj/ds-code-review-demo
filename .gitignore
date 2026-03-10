@@ -9,4 +9,10 @@ __pycache__/
 # IDE
 .idea/
 .vscode/
-.cursor/
+.claude/
+
+# Sample files (downloaded reference docs, not part of the project)
+sample files/
+
+# macOS
+.DS_Store

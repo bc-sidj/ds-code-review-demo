@@ -45,7 +45,7 @@ def get_default_args_keys(source: str) -> set[str]:
 # ===========================================================================
 
 class TestBuggyDagIssues:
-    """Verify the buggy DAG contains all 17 intentional issues."""
+    """Verify the buggy DAG contains all 20 intentional issues."""
 
     def test_bug01_deprecated_import(self, buggy_dag_source):
         """BUG 1: Uses deprecated airflow.operators.python_operator."""
@@ -142,6 +142,20 @@ class TestBuggyDagIssues:
         assert "cleanup" in buggy_dag_source
         assert "cleanup" not in buggy_dag_source.split("extract >> transform >> load")[1].split("cleanup =")[0]
 
+    def test_bug18_no_validation_task(self, buggy_dag_source):
+        """BUG 18: No data integrity validation task after load."""
+        assert "validate" not in buggy_dag_source.lower().split("def ")[0] or \
+               "validation_check" not in buggy_dag_source
+
+    def test_bug19_no_regression_check(self, buggy_dag_source):
+        """BUG 19: No HASH_AGG or regression comparison task."""
+        assert "HASH_AGG" not in buggy_dag_source
+        assert "regression" not in buggy_dag_source.lower().split("# BUG")[0]
+
+    def test_bug20_no_downstream_awareness(self, buggy_dag_source):
+        """BUG 20: No downstream dependency documentation."""
+        assert "table_usage_summary" not in buggy_dag_source
+
 
 # ===========================================================================
 # CLEAN DAG — Should pass all DS team checks
@@ -231,3 +245,15 @@ class TestCleanDagPasses:
     def test_has_dag_tags(self, clean_dag_source):
         """DAG has tags for discoverability."""
         assert "tags=" in clean_dag_source
+
+    def test_has_validation_task(self, clean_dag_source):
+        """Has a data integrity validation task after transform."""
+        assert "validate_metrics" in clean_dag_source
+
+    def test_has_regression_check(self, clean_dag_source):
+        """Has a regression check task to detect data drift."""
+        assert "regression_check" in clean_dag_source
+
+    def test_downstream_dependencies_documented(self, clean_dag_source):
+        """Downstream dependencies are documented."""
+        assert "table_usage_summary" in clean_dag_source

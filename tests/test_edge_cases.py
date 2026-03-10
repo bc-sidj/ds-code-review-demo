@@ -124,10 +124,10 @@ class TestBuggySqlEdgeCases:
         assert "WHERE" not in update_section.upper()
 
     def test_no_duplicate_handling(self, buggy_sql_source):
-        """No DISTINCT or deduplication logic present."""
+        """No DISTINCT or QUALIFY deduplication logic present."""
         assert "DISTINCT" not in buggy_sql_source.upper()
-        assert "ROW_NUMBER()" not in buggy_sql_source.upper()
         assert "QUALIFY" not in buggy_sql_source.upper()
+        # Note: ROW_NUMBER is present but as BUG 16 (non-deterministic ordering)
 
 
 class TestCleanSqlEdgeCases:
