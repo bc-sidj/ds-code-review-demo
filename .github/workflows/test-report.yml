@@ -57,3 +57,23 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
         run: gh pr comment "$PR_NUMBER" --body-file /tmp/test_report.md
+
+      - name: Upload test report artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-report-PR-${{ github.event.pull_request.number || github.event.issue.number }}
+          path: /tmp/test_report.md
+          retention-days: 90
+
+      - name: Add status label
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
+        run: |
+          if grep -q "ALL CHECKS PASSED" /tmp/test_report.md; then
+            gh pr edit "$PR_NUMBER" --add-label "tests-passed" --remove-label "tests-failed" 2>/dev/null || true
+          else
+            gh pr edit "$PR_NUMBER" --add-label "tests-failed" --remove-label "tests-passed" 2>/dev/null || true
+          fi

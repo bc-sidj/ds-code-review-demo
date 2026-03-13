@@ -26,27 +26,21 @@
 
 ## Testing
 
-<!-- Link to testing documentation in Google Drive -->
-- [ ] [Testing documentation](https://drive.google.com/)
+> Testing evidence is **auto-generated** by the CI workflow and posted as a PR comment.
+> It includes: static validation (20+ checks), AI-generated tests, and Snowflake query execution.
+> The report artifact is also uploaded to the Actions tab for audit purposes.
+
+- [ ] Automated test report posted (check PR comments)
 - [ ] Edge cases verified (empty data, NULLs, duplicates, date boundaries)
+- [ ] Additional manual testing notes (if any): <!-- add notes here -->
 
 ## Rollout/Rollback
 
-**Airflow changes:** <!-- e.g., Github Actions, manual deploy, none -->
+> The rollout playbook is **auto-generated** by the CI workflow and posted as part of the test report PR comment.
+> Review the "Rollout Playbook" section and adjust before rollout.
 
-**Database changes:** <!-- e.g., DDL/DML scripts, none -->
-
-**AWS Variables:**
-- Variable name: <!-- e.g., /airflow/variables/ds_variable_name -->
-- Value: <!-- e.g., stages.production.example -->
-
-**Environment Variables (Astronomer):** <!-- e.g., None -->
-
-**Re-run all relevant jobs in production:** <!-- e.g., None, or list jobs -->
-
-**Other changes:** <!-- e.g., None -->
-
-**Rollback considerations:** <!-- e.g., None, or describe rollback steps -->
+- [ ] Rollout playbook reviewed in test report comment
+- [ ] Manual additions (if any): <!-- add notes here -->
 
 ## Checklist
 
