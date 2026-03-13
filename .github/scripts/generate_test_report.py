@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
-"""Generate a detailed test report for a PR.
+"""Generate a detailed test report + rollout playbook for a PR.
 
-Three layers run in sequence:
+Four layers run in sequence:
   1. Static validators (always runs, deterministic)
   2. AI-generated pytest tests (best effort, wrapped in try/except)
   3. Snowflake validation queries (best effort, skipped if no credentials)
+  4. AI-generated rollout playbook (best effort, falls back to skeleton)
 
-The report shows per-category sections with per-file check tables.
+The report embeds Testing Evidence + Rollout Playbook directly in the PR,
+replacing the need for separate Google Docs.
 
 Environment variables:
   OPENAI_API_KEY / OPENROUTER_API_KEY / ANTHROPIC_API_KEY
@@ -22,6 +24,7 @@ import pathlib
 import subprocess
 import tempfile
 import traceback
+from datetime import datetime, timezone
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 
@@ -200,6 +203,88 @@ def run_tests(test_code: str, repo_root: str) -> tuple[str, int, int, int]:
 
 
 # ---------------------------------------------------------------------------
+# Layer 4: AI rollout playbook generation
+# ---------------------------------------------------------------------------
+
+ROLLOUT_PROMPT = """\
+You are a deployment engineer for the BigCommerce Data Solutions (DS) team. \
+Analyze the PR diff below and generate a rollout playbook.
+
+{project_context}
+
+Based on the diff, produce a structured rollout document in Markdown. \
+Detect what types of changes are present and fill in ONLY the relevant sections.
+
+Output the following sections (skip sections that don't apply):
+
+### Airflow Changes
+- Which DAGs are added/modified, deploy method (GitHub Actions / manual), \
+backfill needed (check catchup setting)
+
+### Database Changes
+- DDL/DML scripts to execute, sp_rollout wrapping, CLONE backup recommendations
+
+### Variables
+- Any new Airflow Variables or Connections referenced in the code
+
+### Pre-Rollout Checklist
+- Auto-generated checklist items based on the changes (e.g., verify CLONE, \
+confirm sp_rollout bookends, check Variable values in Astronomer)
+
+### Rollback Steps
+- How to undo each change (CLONE restore, revert DAG, drop objects)
+
+### Re-Run Instructions
+- Which jobs to re-trigger post-deploy, or "None — DAG runs on schedule"
+
+Output ONLY the markdown sections. No preamble or closing commentary. \
+If a section doesn't apply, omit it entirely.
+
+```diff
+{diff_content}
+```
+"""
+
+
+def generate_rollout_doc(diff_content: str) -> str:
+    """Generate a rollout playbook from the diff using AI.
+
+    Returns markdown string. Falls back to a skeleton template on failure.
+    """
+    api_key = get_api_key()
+    if not api_key:
+        return ""
+
+    base_url = os.environ.get("API_BASE_URL", DEFAULT_BASE_URL)
+    model = os.environ.get("REVIEW_MODEL", DEFAULT_MODEL)
+
+    prompt = ROLLOUT_PROMPT.format(
+        project_context=load_project_context(),
+        diff_content=diff_content,
+    )
+
+    client = OpenAI(api_key=api_key, base_url=base_url)
+    response = client.chat.completions.create(
+        model=model, max_tokens=2048, temperature=0,
+        messages=[{"role": "user", "content": prompt}],
+    )
+
+    return response.choices[0].message.content.strip()
+
+
+ROLLOUT_SKELETON = """\
+### Airflow Changes
+- _Could not auto-detect — fill in manually if applicable_
+
+### Database Changes
+- _Could not auto-detect — fill in manually if applicable_
+
+### Rollback Steps
+- _Describe rollback steps manually_
+"""
+
+
+# ---------------------------------------------------------------------------
 # Detailed report builder
 # ---------------------------------------------------------------------------
 
@@ -215,8 +300,11 @@ def build_report(
     ai_failed: int,
     ai_errors: int,
     snowflake_results: list[SnowflakeResult] | None,
+    changed_files: list[dict] | None = None,
+    rollout_md: str = "",
 ) -> str:
-    """Build detailed Markdown report with per-category sections and per-file tables."""
+    """Build detailed Markdown report with Testing Evidence, per-category
+    sections, Summary, and Rollout Playbook."""
 
     # Flatten all checks into a single list with source tag
     all_checks: list[dict] = []
@@ -289,6 +377,60 @@ def build_report(
     r.append(f"**Status:** {status_icon} {status_text}")
     r.append(f"**Files analyzed:** {len(static_results)} | "
              f"**Checks:** {total_passed} passed, {total_failed} failed, {total_warnings} warnings")
+    r.append("")
+
+    # --- Testing Evidence ---
+    r.append("### Testing Evidence")
+    r.append("> _Auto-generated — replaces manual testing Google Doc._")
+    r.append("")
+    run_ts = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    r.append(f"**Run date:** {run_ts}")
+    r.append("")
+
+    # Validation layers status
+    static_count = sum(len(v) for v in static_results.values())
+    static_layer = f"✅ {static_count} checks executed" if static_count else "⏭️ No files to check"
+
+    if ai_result:
+        ai_total = ai_passed + ai_failed + ai_errors
+        ai_layer = f"✅ {ai_passed} passed, {ai_failed} failed" if ai_total else "⏭️ No tests generated"
+    else:
+        ai_layer = "⏭️ Skipped (no API key)"
+
+    if snowflake_results:
+        sf_exec = [s for s in snowflake_results if s.status != "SKIP"]
+        sf_skip = any(s.status == "SKIP" for s in snowflake_results)
+        if sf_exec:
+            sf_p = sum(1 for s in sf_exec if s.status == "PASS")
+            sf_f = sum(1 for s in sf_exec if s.status in ("FAIL", "ERROR"))
+            sf_layer = f"✅ {sf_p} passed, {sf_f} failed"
+        elif sf_skip:
+            sf_layer = "⏭️ Skipped (no credentials)"
+        else:
+            sf_layer = "⏭️ No queries generated"
+    else:
+        sf_layer = "⏭️ Not executed"
+
+    r.append("| Validation Layer | Status |")
+    r.append("|-----------------|--------|")
+    r.append(f"| Static Validators | {static_layer} |")
+    r.append(f"| AI-Generated Tests | {ai_layer} |")
+    r.append(f"| Snowflake Validation | {sf_layer} |")
+    r.append("")
+
+    # Files changed table
+    if changed_files:
+        r.append("**Files changed:**")
+        r.append("")
+        r.append("| File | Type | Status |")
+        r.append("|------|------|--------|")
+        for f in changed_files:
+            fname = pathlib.PurePosixPath(f["path"]).name
+            ftype = {".sql": "SQL", ".py": "DAG/Python"}.get(f.get("extension", ""), f.get("extension", "—"))
+            r.append(f"| `{fname}` | {ftype} | {f.get('status', 'unknown').title()} |")
+        r.append("")
+
+    r.append("---")
     r.append("")
 
     # --- Per-category detailed sections ---
@@ -386,6 +528,17 @@ def build_report(
     r.append(f"| **Total** | **{total_passed}** | **{total_failed}** | **{total}** |")
     r.append("")
 
+    # --- Rollout Playbook ---
+    r.append("---")
+    r.append("## Rollout Playbook")
+    r.append("> _Auto-generated — replaces manual rollout Google Doc. Review and adjust before rollout._")
+    r.append("")
+    if rollout_md:
+        r.append(rollout_md)
+    else:
+        r.append(ROLLOUT_SKELETON)
+    r.append("")
+
     return "\n".join(r)
 
 
@@ -407,6 +560,9 @@ def main() -> None:
         diff_content = diff_content[:MAX_DIFF_CHARS] + "\n\n... [truncated] ..."
 
     repo_root = os.environ.get("GITHUB_WORKSPACE", str(pathlib.Path.cwd()))
+
+    # Parse changed files for the Testing Evidence section
+    changed_files = parse_diff_files(diff_content)
 
     # Layer 1: Static validators (always runs)
     static_results = run_static_validators(diff_content, repo_root)
@@ -432,9 +588,17 @@ def main() -> None:
     except Exception:
         print(f"Snowflake layer failed:\n{traceback.format_exc()}", file=sys.stderr)
 
+    # Layer 4: AI rollout playbook (best effort)
+    rollout_md = ""
+    try:
+        rollout_md = generate_rollout_doc(diff_content)
+    except Exception:
+        print(f"Rollout generation failed:\n{traceback.format_exc()}", file=sys.stderr)
+
     report = build_report(
         static_results, ai_result, pytest_output,
         ai_passed, ai_failed, ai_errors, snowflake_results,
+        changed_files=changed_files, rollout_md=rollout_md,
     )
     print(report)
 
